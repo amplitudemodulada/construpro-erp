@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "name": "ConstruPro ERP",
+  "description": "Sistema de gestão para loja de materiais de construção",
+  "repository": "amplitudemodulada/construpro-erp",
+  "minAutoUpdate": "1.0.0"
+}

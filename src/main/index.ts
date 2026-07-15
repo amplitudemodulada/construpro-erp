@@ -10,6 +10,7 @@ import { registerVendasIpc } from './ipc/vendas'
 import { registerFinanceiroIpc } from './ipc/financeiro'
 import { registerRelatoriosIpc } from './ipc/relatorios'
 import { registerBackupIpc } from './ipc/backup'
+import { checkForUpdates } from './updater'
 
 const isDev = process.defaultApp === true || process.env.NODE_ENV === 'development'
 
@@ -73,6 +74,10 @@ registerFinanceiroIpc()
 registerRelatoriosIpc()
 registerBackupIpc()
 
+// Updater IPC
+ipcMain.handle('update:check', () => checkForUpdates(false))
+ipcMain.handle('update:check-silent', () => checkForUpdates(true))
+
 app.whenReady().then(() => {
   app.setAppUserModelId('com.msdos.construpro')
 
@@ -88,6 +93,11 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  // Verificar atualização automaticamente após 10 segundos
+  setTimeout(() => {
+    if (!isDev) checkForUpdates(true)
+  }, 10000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

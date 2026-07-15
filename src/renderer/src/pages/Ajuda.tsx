@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, Users, Truck, UserCheck, Package,
   Layers, ShoppingCart, DollarSign, Database,
-  ChevronDown, ChevronRight, HelpCircle, Barcode
+  ChevronDown, ChevronRight, HelpCircle, Barcode, RefreshCw
 } from 'lucide-react'
 
 const topicos = [
@@ -176,6 +176,18 @@ const topicos = [
 
 export default function Ajuda() {
   const [aberto, setAberto] = useState<number | null>(0)
+  const [verificando, setVerificando] = useState(false)
+
+  const verificarAtualizacao = async () => {
+    setVerificando(true)
+    try {
+      await window.api.update.check()
+    } catch {
+      alert('Erro ao verificar atualização')
+    } finally {
+      setVerificando(false)
+    }
+  }
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -256,6 +268,21 @@ export default function Ajuda() {
             </div>
           )
         })}
+      </div>
+
+      <div className="card p-4 flex items-center justify-between">
+        <div>
+          <div className="font-semibold text-slate-800">Verificar Atualizações</div>
+          <div className="text-sm text-slate-500">Versão 1.0.0 — Verifique se há novas versões disponíveis</div>
+        </div>
+        <button
+          onClick={verificarAtualizacao}
+          disabled={verificando}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={16} className={verificando ? 'animate-spin' : ''} />
+          {verificando ? 'Verificando...' : 'Verificar Agora'}
+        </button>
       </div>
 
       <div className="card bg-slate-800 text-white text-center">

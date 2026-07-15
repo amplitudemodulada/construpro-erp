@@ -84,6 +84,10 @@ const api = {
     sair: () => ipcRenderer.invoke('app:sair'),
     reiniciar: () => ipcRenderer.invoke('app:reiniciar'),
   },
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    checkSilent: () => ipcRenderer.invoke('update:check-silent'),
+  },
 }
 
 if (process.contextIsolated) {
