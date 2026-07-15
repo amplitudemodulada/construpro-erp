@@ -19,11 +19,11 @@ function getTokenPaths(): string[] {
   const appPath = app.getAppPath()
 
   return [
-    path.join(userData, TOKEN_FILE),
     path.join(exeDir, TOKEN_FILE),
     path.join(appPath, TOKEN_FILE),
     path.join(process.cwd(), TOKEN_FILE),
     path.join(__dirname, '..', '..', TOKEN_FILE),
+    path.join(userData, TOKEN_FILE),
   ]
 }
 
