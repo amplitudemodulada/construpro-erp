@@ -1,20 +1,22 @@
 {
   "name": "loja-construcao",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sistema de gestão para loja de materiais de construção - Msdos Informatica",
   "main": "out/main/index.js",
   "author": "Msdos Informatica",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "dist": "electron-vite build && electron-builder",
-    "dist:win": "electron-vite build && electron-builder --win",
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "dist:publish": "electron-vite build && electron-builder --win --publish always",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "obfuscate": "javascript-obfuscator out/main/index.js --output out/main/index.js --compact true --string-array true --string-array-encoding base64 --string-array-threshold 0.75 --identifier-names-generator hexadecimal --target node",
     "build:secure": "npm run build && npm run obfuscate"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.344.0",
@@ -42,29 +44,5 @@
     "terser": "^5.49.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.12"
-  },
-  "build": {
-    "appId": "com.msdos.loja-construcao",
-    "productName": "ConstruPro ERP",
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "files": [
-      "out/**/*",
-      "iniciar.bat",
-      "node_modules/better-sqlite3/**/*",
-      "node_modules/bindings/**/*",
-      "node_modules/file-uri-to-path/**/*"
-    ],
-    "asarUnpack": [
-      "node_modules/better-sqlite3/**/*"
-    ]
   }
 }
