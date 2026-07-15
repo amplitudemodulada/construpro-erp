@@ -78,22 +78,59 @@ export function getLatestRelease(): Promise<{ version: string; downloadUrl: stri
 }
 
 function downloadFile(url: string, dest: string, onProgress?: (percent: number) => void): Promise<boolean> {
+  const logFile = path.join(app.getPath('temp'), 'construpro-update.log')
+  const logMsg = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`)
+
+  fs.writeFileSync(logFile, `=== Download iniciado ===\nURL: ${url}\nDest: ${dest}\n`)
+
   return new Promise((resolve) => {
-    const doDownload = (downloadUrl: string) => {
-      https.get(downloadUrl, { headers: { 'User-Agent': 'ConstruPro-ERP-Updater' } }, (response) => {
+    let resolved = false
+    const finish = (result: boolean) => {
+      if (!resolved) { resolved = true; resolve(result) }
+    }
+
+    const doDownload = (downloadUrl: string, redirectCount = 0) => {
+      if (redirectCount > 5) {
+        logMsg('Limite de redirects atingido')
+        finish(false)
+        return
+      }
+
+      logMsg(`Conectando a: ${downloadUrl}`)
+
+      const req = https.get(downloadUrl, {
+        headers: { 'User-Agent': 'ConstruPro-ERP-Updater' },
+        timeout: 60000
+      }, (response) => {
+        logMsg(`Status: ${response.statusCode} | Location: ${response.headers.location || 'N/A'}`)
+
         if (response.statusCode === 301 || response.statusCode === 302) {
-          doDownload(response.headers.location!)
+          const next = response.headers.location
+          if (!next) { finish(false); return }
+          response.resume()
+          doDownload(next, redirectCount + 1)
           return
         }
+
         if (response.statusCode !== 200) {
-          resolve(false)
+          logMsg(`HTTP ${response.statusCode} - abortado`)
+          response.resume()
+          finish(false)
           return
         }
+
         const totalSize = parseInt(response.headers['content-length'] || '0', 10)
+        logMsg(`Tamanho: ${totalSize} bytes`)
         let downloadedSize = 0
 
         const file = fs.createWriteStream(dest)
         response.pipe(file)
+
+        file.on('error', (err) => {
+          logMsg(`Erro ao escrever arquivo: ${err.message}`)
+          try { fs.unlinkSync(dest) } catch {}
+          finish(false)
+        })
 
         response.on('data', (chunk: Buffer) => {
           downloadedSize += chunk.length
@@ -102,9 +139,32 @@ function downloadFile(url: string, dest: string, onProgress?: (percent: number) 
           }
         })
 
-        file.on('finish', () => { file.close(); resolve(true) })
-      }).on('error', () => { resolve(false) })
+        response.on('error', (err) => {
+          logMsg(`Erro no response: ${err.message}`)
+          try { file.close() } catch {}
+          finish(false)
+        })
+
+        file.on('finish', () => {
+          file.close(() => {
+            logMsg(`Download completo: ${downloadedSize} bytes`)
+            finish(true)
+          })
+        })
+      })
+
+      req.on('timeout', () => {
+        logMsg('Timeout na conexao')
+        req.destroy()
+        finish(false)
+      })
+
+      req.on('error', (err) => {
+        logMsg(`Erro de conexao: ${err.message}`)
+        finish(false)
+      })
     }
+
     doDownload(url)
   })
 }
@@ -221,7 +281,11 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
     try { progressWin?.close() } catch {}
 
     if (!downloaded) {
-      dialog.showErrorBox('Erro', 'Falha ao baixar atualização.')
+      const logFile = path.join(app.getPath('temp'), 'construpro-update.log')
+      let logContent = ''
+      try { logContent = fs.readFileSync(logFile, 'utf-8') } catch {}
+      log.error('Download falhou. Log:\n' + logContent)
+      dialog.showErrorBox('Erro', `Falha ao baixar atualização.\n\nVerifique sua conexão com a internet.\n\nSe o problema persistir, baixe manualmente:\n${release.downloadUrl}`)
       return false
     }
 
