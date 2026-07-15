@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, session, PrintToPDFOptions } from 'electron'
 import { join } from 'path'
 import { checkLicense, activateLicense, getLicenseInfo } from './license'
 import { registerClientesIpc } from './ipc/clientes'
@@ -77,6 +77,47 @@ registerBackupIpc()
 // Updater IPC
 ipcMain.handle('update:check', () => checkForUpdates(false))
 ipcMain.handle('update:check-silent', () => checkForUpdates(true))
+
+// Print IPC — abre janela oculta e imprime via Electron (sem depender do Windows Print)
+ipcMain.handle('print:direct', async (_, html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) => {
+  const printWindow = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 600,
+    webPreferences: { offscreen: true }
+  })
+
+  await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+
+  const printerList = printWindow.webContents.getPrintersAsync()
+  const printers = await printerList
+
+  let printerName = options?.printerName
+  if (!printerName && printers.length > 0) {
+    const defaultPrinter = printers.find(p => p.isDefault)
+    printerName = defaultPrinter?.name || printers[0].name
+  }
+
+  return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    printWindow.webContents.print(
+      {
+        silent: options?.silent ?? true,
+        deviceName: printerName || '',
+        landscape: options?.landscape ?? false,
+        printBackground: true,
+        margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
+      },
+      (success, failureReason) => {
+        printWindow.close()
+        if (!success) {
+          resolve({ success: false, error: failureReason })
+        } else {
+          resolve({ success: true })
+        }
+      }
+    )
+  })
+})
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.msdos.construpro')

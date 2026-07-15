@@ -10,7 +10,7 @@
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "obfuscate": "javascript-obfuscator out/main/index.js --output out/main/index.js --compact true --string-array true --string-array-encoding base64 --string-array-threshold 1 --identifier-names-generator hexadecimal --self-defending true --disable-console-output true --domain-lock 127.0.0.1 --target browser",
+    "obfuscate": "javascript-obfuscator out/main/index.js --output out/main/index.js --compact true --string-array true --string-array-encoding base64 --string-array-threshold 0.75 --identifier-names-generator hexadecimal --target node",
     "build:secure": "npm run build && npm run obfuscate"
   },
   "dependencies": {

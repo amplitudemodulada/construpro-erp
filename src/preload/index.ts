@@ -88,6 +88,10 @@ const api = {
     check: () => ipcRenderer.invoke('update:check'),
     checkSilent: () => ipcRenderer.invoke('update:check-silent'),
   },
+  print: {
+    direct: (html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) =>
+      ipcRenderer.invoke('print:direct', html, options),
+  },
 }
 
 if (process.contextIsolated) {

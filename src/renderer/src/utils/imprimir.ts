@@ -100,6 +100,11 @@ export function imprimirVenda(venda: any) {
   if (janela) {
     janela.document.write(html)
     janela.document.close()
+    // Usa IPC do Electron para imprimir direto (sem depender do Windows Print)
+    window.api?.print?.direct(html, { silent: true }).catch(() => {
+      // Fallback: tenta window.print()
+      setTimeout(() => janela.print(), 300)
+    })
   }
 }
 
@@ -224,7 +229,13 @@ export function imprimirA4(venda: any) {
 </html>`
 
   const janela = window.open('', '_blank', 'width=900,height=700')
-  if (janela) { janela.document.write(html); janela.document.close() }
+  if (janela) {
+    janela.document.write(html)
+    janela.document.close()
+    window.api?.print?.direct(html, { silent: true }).catch(() => {
+      setTimeout(() => janela.print(), 300)
+    })
+  }
 }
 
 export function gerarPdfCupom(venda: any) {
@@ -307,7 +318,11 @@ export function gerarPdfCupom(venda: any) {
   if (janela) {
     janela.document.write(html)
     janela.document.close()
-    setTimeout(() => janela.print(), 500)
+    setTimeout(() => {
+      window.api?.print?.direct(html, { silent: true }).catch(() => {
+        janela.print()
+      })
+    }, 500)
   }
 }
 
@@ -431,7 +446,11 @@ export function gerarPdfA4(venda: any) {
   if (janela) {
     janela.document.write(html)
     janela.document.close()
-    setTimeout(() => janela.print(), 500)
+    setTimeout(() => {
+      window.api?.print?.direct(html, { silent: true }).catch(() => {
+        janela.print()
+      })
+    }, 500)
   }
 }
 
