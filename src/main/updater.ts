@@ -183,36 +183,42 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
     const updateDir = getTempDir()
     const installerPath = path.join(updateDir, release.fileName || 'ConstruPro-ERP-Setup.exe')
 
-    const progressWin = new (require('electron').BrowserWindow)({
-      width: 400, height: 150, show: false, resizable: false,
-      title: 'Baixando atualização...',
-      frame: false,
-      alwaysOnTop: true,
-      skipTaskbar: true
-    })
-
-    progressWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
-      <html><body style="font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1e293b;color:white;">
-        <div style="text-align:center;">
-          <p>Baixando atualização...</p>
-          <div style="background:#334155;border-radius:8px;height:20px;width:300px;overflow:hidden;">
-            <div id="bar" style="background:#3b82f6;height:100%;width:0%;transition:width 0.3s;"></div>
+    let progressWin: any = null
+    try {
+      progressWin = new (require('electron').BrowserWindow)({
+        width: 400, height: 150, show: false, resizable: false,
+        title: 'Baixando atualização...',
+        frame: false,
+        alwaysOnTop: true,
+        skipTaskbar: true
+      })
+      progressWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+        <html><body style="font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1e293b;color:white;">
+          <div style="text-align:center;">
+            <p>Baixando atualização...</p>
+            <div style="background:#334155;border-radius:8px;height:20px;width:300px;overflow:hidden;">
+              <div id="bar" style="background:#3b82f6;height:100%;width:0%;transition:width 0.3s;"></div>
+            </div>
+            <p id="pct" style="margin-top:8px;">0%</p>
           </div>
-          <p id="pct" style="margin-top:8px;">0%</p>
-        </div>
-      </body></html>
-    `)}`)
-    progressWin.once('ready-to-show', () => progressWin.show())
+        </body></html>
+      `)}`)
+      progressWin.once('ready-to-show', () => progressWin!.show())
+    } catch {
+      progressWin = null
+    }
 
     let lastPercent = 0
     const downloaded = await downloadFile(release.downloadUrl, installerPath, (percent) => {
       if (percent !== lastPercent) {
         lastPercent = percent
-        progressWin.webContents.executeJavaScript(`document.getElementById('bar').style.width='${percent}%';document.getElementById('pct').textContent='${percent}%';`)
+        try {
+          progressWin?.webContents?.executeJavaScript(`document.getElementById('bar').style.width='${percent}%';document.getElementById('pct').textContent='${percent}%';`)
+        } catch {}
       }
     })
 
-    progressWin.close()
+    try { progressWin?.close() } catch {}
 
     if (!downloaded) {
       dialog.showErrorBox('Erro', 'Falha ao baixar atualização.')
