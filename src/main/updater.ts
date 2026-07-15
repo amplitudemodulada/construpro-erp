@@ -6,7 +6,7 @@ import path from 'path'
 
 const REPO = 'amplitudemodulada/construpro-erp'
 const CURRENT_VERSION = '1.0.0'
-const UPDATE_SERVER = 'https://construpro-erp.vercel.app/api/update'
+const UPDATE_SERVER = 'https://construpro-updater.vercel.app/api/update'
 
 function getVersion(): string {
   // Procura version.json na pasta do executável e na pasta do app
