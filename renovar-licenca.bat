@@ -42,11 +42,38 @@ if /I "%PUBLICAR%"=="S" (
     echo  GitHub publicado!
     echo.
     echo  Atualizando servidor de atualizacoes (Vercel)...
+
+    :: Buscar última release do GitHub
+    echo  Buscando info da ultima release...
+    for /f "tokens=*" %%i in ('gh release list --repo amplitudemodulada/construpro-erp --limit 1 --json tagName --jq ".[0].tagName"') do set TAG=%%i
+    for /f "tokens=*" %%i in ('gh release view %TAG% --repo amplitudemodulada/construpro-erp --json assets --jq ".assets[0].browser_download_url"') do set DOWNLOAD=%%i
+    for /f "tokens=*" %%i in ('gh release view %TAG% --repo amplitudemodulada/construpro-erp --json assets --jq ".assets[0].name"') do set FILENAME=%%i
+
+    echo  Versao: %TAG%
+
+    :: Reescrever index.js do Vercel com a nova versão
     cd /d "C:\projetos\OPENCODE\construpro-updater"
+    (
+    echo export default async function handler(req, res^) {
+    echo   res.setHeader('Access-Control-Allow-Origin', '*'^)
+    echo   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'^)
+    echo   if (req.method === 'OPTIONS'^) return res.status(200^).end(^)
+    echo   return res.status(200^).json({
+    echo     version: '%TAG%',
+    echo     name: 'ConstruPro ERP %TAG%',
+    echo     date: new Date(^).toISOString(^),
+    echo     downloadUrl: '%DOWNLOAD%',
+    echo     fileName: '%FILENAME%',
+    echo     releaseNotes: 'Atualizacao automatica'
+    echo   }^)
+    echo }
+    ) > "api\update\index.js"
+
+    :: Deploy no Vercel
     vercel --yes --prod
     cd /d "%~dp0"
     echo.
-    echo  Pronto! Cliente recebera automaticamente.
+    echo  Pronto! GitHub + Vercel atualizados.
 )
 
 echo.
