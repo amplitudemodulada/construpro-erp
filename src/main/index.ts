@@ -1,0 +1,99 @@
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron'
+import { join } from 'path'
+import { checkLicense, activateLicense, getLicenseInfo } from './license'
+import { registerClientesIpc } from './ipc/clientes'
+import { registerFornecedoresIpc } from './ipc/fornecedores'
+import { registerFuncionariosIpc } from './ipc/funcionarios'
+import { registerProdutosIpc } from './ipc/produtos'
+import { registerEstoqueIpc } from './ipc/estoque'
+import { registerVendasIpc } from './ipc/vendas'
+import { registerFinanceiroIpc } from './ipc/financeiro'
+import { registerRelatoriosIpc } from './ipc/relatorios'
+import { registerBackupIpc } from './ipc/backup'
+
+const isDev = process.defaultApp === true || process.env.NODE_ENV === 'development'
+
+let mainWindow: BrowserWindow
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 1024,
+    minHeight: 700,
+    show: false,
+    title: 'ConstruPro ERP',
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => mainWindow.show())
+
+  // Bloqueia DevTools e menu de contexto em produção
+  if (!isDev) {
+    mainWindow.webContents.on('before-input-event', (_, input) => {
+      if (
+        (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i' ||
+        input.key === 'F12'
+      ) {
+        mainWindow.webContents.closeDevTools()
+      }
+    })
+    mainWindow.webContents.on('context-menu', e => e.preventDefault())
+  }
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+// License IPC
+ipcMain.handle('license:check', () => checkLicense())
+ipcMain.handle('license:activate', (_, key: string) => activateLicense(key))
+ipcMain.handle('license:info', () => getLicenseInfo())
+
+// Register all module IPC handlers
+registerClientesIpc()
+registerFornecedoresIpc()
+registerFuncionariosIpc()
+registerProdutosIpc()
+registerEstoqueIpc()
+registerVendasIpc()
+registerFinanceiroIpc()
+registerRelatoriosIpc()
+registerBackupIpc()
+
+app.whenReady().then(() => {
+  app.setAppUserModelId('com.msdos.construpro')
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://wa.me https://*.whatsapp.com"
+        ]
+      }
+    })
+  })
+
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
