@@ -116,6 +116,7 @@ function extractZip(zipPath: string, dest: string): Promise<boolean> {
 
 function runUpdateScript(updateDir: string): void {
   const exeDir = path.dirname(app.getPath('exe'))
+  const exePath = app.getPath('exe')
   const logFile = path.join(app.getPath('temp'), 'construpro-update.log')
 
   const batContent = `@echo off
@@ -126,38 +127,40 @@ echo Exe Dir: ${exeDir} >> "${logFile}"
 echo. >> "${logFile}"
 
 if not exist "${updateDir}\\out" (
-  echo ERRO: Pasta out nao encontrada em ${updateDir} >> "${logFile}"
-  echo Conteudo do diretorio: >> "${logFile}"
+  echo ERRO: Pasta out nao encontrada >> "${logFile}"
   dir "${updateDir}" /b >> "${logFile}" 2>&1
-  goto FIM
+  goto ABRIR
 )
 
-echo Pasta out encontrada! >> "${logFile}"
-echo Aguardando fechamento do app... >> "${logFile}"
-timeout /t 5 /nobreak > nul
-echo Copiando out... >> "${logFile}"
+echo Pasta out OK >> "${logFile}"
+
+:ESPERAR
+tasklist /FI "IMAGENAME eq electron.exe" 2>nul | find /I "electron.exe" >nul
+if %ERRORLEVEL% equ 0 (
+  echo App ainda rodando, aguardando... >> "${logFile}"
+  timeout /t 2 /nobreak > nul
+  goto ESPERAR
+)
+
+echo App fechado. Copiando arquivos... >> "${logFile}"
 xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out" >> "${logFile}" 2>&1
 echo xcopy saida: %ERRORLEVEL% >> "${logFile}"
-
-echo Copiando version.json... >> "${logFile}"
 copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json" >> "${logFile}" 2>&1
-
-echo Copiando token.json... >> "${logFile}"
 copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json" >> "${logFile}" 2>&1
 
 echo Limpeza... >> "${logFile}"
 rmdir /S /Q "${updateDir}" 2>nul
 
-:FIM
+:ABRIR
 echo Finalizado em %DATE% %TIME% >> "${logFile}"
 echo Iniciando ConstruPro ERP...
-start "" "${app.getPath('exe')}"
+start "" "${exePath}"
 del "%~f0"
 `
 
   const batPath = path.join(app.getPath('temp'), 'construpro-update.bat')
   fs.writeFileSync(batPath, batContent)
-  exec(`cmd /c "${batPath}"`)
+  exec(`cmd /c start "" "${batPath}"`)
 }
 
 export async function checkForUpdates(silent: boolean = false): Promise<boolean> {
