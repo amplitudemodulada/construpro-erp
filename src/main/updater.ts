@@ -46,10 +46,29 @@ function isUpdatePending(): boolean {
 function applyPendingUpdate(): boolean {
   const updateDir = getUpdateDir()
   const exeDir = path.dirname(app.getPath('exe'))
+  const logFile = path.join(app.getPath('temp'), 'construpro-apply.log')
 
-  if (!fs.existsSync(path.join(updateDir, 'out'))) return false
+  const log = (msg: string) => {
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`)
+  }
+
+  fs.writeFileSync(logFile, `=== Aplicando atualização ===\n`)
+  log(`Update dir: ${updateDir}`)
+  log(`Exe dir: ${exeDir}`)
+
+  const outDir = path.join(updateDir, 'out')
+  if (!fs.existsSync(outDir)) {
+    log('ERRO: pasta out/ não encontrada no update')
+    return false
+  }
 
   try {
+    log('Conteúdo da pasta out:')
+    fs.readdirSync(outDir).forEach(f => log(`  - ${f}`))
+
+    const destOut = path.join(exeDir, 'out')
+    log(`Copiando para: ${destOut}`)
+
     const copyDir = (src: string, dest: string) => {
       if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true })
       for (const item of fs.readdirSync(src)) {
@@ -59,20 +78,37 @@ function applyPendingUpdate(): boolean {
           copyDir(s, d)
         } else {
           fs.copyFileSync(s, d)
+          log(`  Copiado: ${path.relative(updateDir, s)}`)
         }
       }
     }
 
-    copyDir(path.join(updateDir, 'out'), path.join(exeDir, 'out'))
+    copyDir(outDir, destOut)
 
     const vSrc = path.join(updateDir, 'version.json')
     const tSrc = path.join(updateDir, 'token.json')
-    if (fs.existsSync(vSrc)) fs.copyFileSync(vSrc, path.join(exeDir, 'version.json'))
-    if (fs.existsSync(tSrc)) fs.copyFileSync(tSrc, path.join(exeDir, 'token.json'))
+    if (fs.existsSync(vSrc)) {
+      fs.copyFileSync(vSrc, path.join(exeDir, 'version.json'))
+      log('version.json copiado')
+    }
+    if (fs.existsSync(tSrc)) {
+      fs.copyFileSync(tSrc, path.join(exeDir, 'token.json'))
+      log('token.json copiado')
+    }
+
+    // Verificar se a versão foi atualizada
+    const vDest = path.join(exeDir, 'version.json')
+    if (fs.existsSync(vDest)) {
+      const vData = JSON.parse(fs.readFileSync(vDest, 'utf-8'))
+      log(`Versão após cópia: ${vData.version}`)
+    }
 
     fs.rmSync(updateDir, { recursive: true, force: true })
+    log('Pasta de update removida')
+    log('Sucesso!')
     return true
-  } catch {
+  } catch (err: any) {
+    log(`ERRO: ${err.message}`)
     return false
   }
 }
