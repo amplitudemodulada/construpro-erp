@@ -116,32 +116,42 @@ function extractZip(zipPath: string, dest: string): Promise<boolean> {
 
 function runUpdateScript(updateDir: string): void {
   const exeDir = path.dirname(app.getPath('exe'))
+  const logFile = path.join(app.getPath('temp'), 'construpro-update.log')
+
   const batContent = `@echo off
-echo ============================================ >> "%TEMP%\\construpro-update.log"
-echo Atualizacao iniciada em %DATE% %TIME% >> "%TEMP%\\construpro-update.log"
-echo Update Dir: ${updateDir} >> "%TEMP%\\construpro-update.log"
-echo Exe Dir: ${exeDir} >> "%TEMP%\\construpro-update.log"
+echo ============================================ > "${logFile}"
+echo Atualizacao iniciada em %DATE% %TIME% >> "${logFile}"
+echo Update Dir: ${updateDir} >> "${logFile}"
+echo Exe Dir: ${exeDir} >> "${logFile}"
+echo. >> "${logFile}"
 
-echo Aguardando fechamento do ConstruPro ERP...
+if not exist "${updateDir}\\out" (
+  echo ERRO: Pasta out nao encontrada em ${updateDir} >> "${logFile}"
+  echo Conteudo do diretorio: >> "${logFile}"
+  dir "${updateDir}" /b >> "${logFile}" 2>&1
+  goto FIM
+)
+
+echo Pasta out encontrada! >> "${logFile}"
+echo Aguardando fechamento do app... >> "${logFile}"
 timeout /t 5 /nobreak > nul
+echo Copiando out... >> "${logFile}"
+xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out" >> "${logFile}" 2>&1
+echo xcopy saida: %ERRORLEVEL% >> "${logFile}"
 
-echo Copiando atualizacao...
-echo Copiando out... >> "%TEMP%\\construpro-update.log"
-xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out" >> "%TEMP%\\construpro-update.log" 2>&1
+echo Copiando version.json... >> "${logFile}"
+copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json" >> "${logFile}" 2>&1
 
-echo Copiando version.json... >> "%TEMP%\\construpro-update.log"
-copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json" >> "%TEMP%\\construpro-update.log" 2>&1
+echo Copiando token.json... >> "${logFile}"
+copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json" >> "${logFile}" 2>&1
 
-echo Copiando token.json... >> "%TEMP%\\construpro-update.log"
-copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json" >> "%TEMP%\\construpro-update.log" 2>&1
-
-echo Limpeza...
+echo Limpeza... >> "${logFile}"
 rmdir /S /Q "${updateDir}" 2>nul
 
+:FIM
+echo Finalizado em %DATE% %TIME% >> "${logFile}"
 echo Iniciando ConstruPro ERP...
 start "" "${app.getPath('exe')}"
-
-echo Finalizado >> "%TEMP%\\construpro-update.log"
 del "%~f0"
 `
 
