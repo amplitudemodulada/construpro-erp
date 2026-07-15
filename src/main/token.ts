@@ -12,17 +12,20 @@ interface TokenData {
 const TOKEN_FILE = 'token.json'
 
 function getTokenPath(): string {
-  const exePath = app.getPath('exe')
-  const tokenPath = path.join(path.dirname(exePath), TOKEN_FILE)
-  if (fs.existsSync(tokenPath)) return tokenPath
+  const exeDir = path.dirname(app.getPath('exe'))
 
-  const appPath = path.join(path.dirname(exePath), '..', TOKEN_FILE)
-  if (fs.existsSync(appPath)) return appPath
+  const candidates = [
+    path.join(exeDir, TOKEN_FILE),
+    path.join(exeDir, '..', TOKEN_FILE),
+    path.join(process.cwd(), TOKEN_FILE),
+    path.join(__dirname, '..', '..', TOKEN_FILE),
+  ]
 
-  const rootPath = path.join(process.cwd(), TOKEN_FILE)
-  if (fs.existsSync(rootPath)) return rootPath
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p
+  }
 
-  return tokenPath
+  return candidates[0]
 }
 
 export function loadToken(): TokenData | null {

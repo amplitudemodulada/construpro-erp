@@ -18,12 +18,24 @@ interface GitHubRelease {
 }
 
 function getVersion(): string {
-  const vPath = path.join(app.getPath('exe'), '..', '..', 'version.json')
-  if (fs.existsSync(vPath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(vPath, 'utf-8'))
-      return data.version || CURRENT_VERSION
-    } catch { return CURRENT_VERSION }
+  // Procura version.json na pasta do executável e na pasta do app
+  const exeDir = path.dirname(app.getPath('exe'))
+  const appDir = path.dirname(exeDir)
+
+  const paths = [
+    path.join(exeDir, 'version.json'),
+    path.join(appDir, 'version.json'),
+    path.join(process.cwd(), 'version.json'),
+    path.join(__dirname, '..', '..', 'version.json'),
+  ]
+
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(p, 'utf-8'))
+        return data.version || CURRENT_VERSION
+      } catch {}
+    }
   }
   return CURRENT_VERSION
 }
