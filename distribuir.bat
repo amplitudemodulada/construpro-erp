@@ -11,19 +11,17 @@ echo.
 set DEST=dist\ConstruPro-ERP
 
 :: Limpa pasta anterior (ignora erros de arquivos travados)
-echo  [1/4] Limpando pasta anterior...
+echo  [1/3] Limpando pasta anterior...
 if exist "%DEST%" rmdir /s /q "%DEST%" 2>nul
 mkdir "%DEST%" 2>nul
 
 :: Compila
-echo  [2/4] Compilando e ofuscando...
+echo  [2/3] Compilando...
 call npm run build 2>nul
 if errorlevel 1 ( echo  ERRO no build! & pause & exit /b 1 )
-call npm run obfuscate 2>nul
-if errorlevel 1 ( echo  ERRO na ofuscacao! & pause & exit /b 1 )
 
 :: Copia com robocopy (mais robusto)
-echo  [3/4] Copiando arquivos...
+echo  [3/3] Copiando arquivos...
 robocopy "out" "%DEST%\out" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
 robocopy "node_modules\electron\dist" "%DEST%" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
 robocopy "node_modules\better-sqlite3" "%DEST%\node_modules\better-sqlite3" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
@@ -33,7 +31,7 @@ copy /y "package.json" "%DEST%\package.json" >nul
 copy /y "token.json" "%DEST%\token.json" >nul
 
 :: Cria bat de inicializacao
-echo  [4/4] Criando iniciar.bat...
+echo  [2/3] Criando iniciar.bat...
 (
 echo @echo off
 echo cd /d "%%~dp0"
