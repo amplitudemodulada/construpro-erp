@@ -40,29 +40,39 @@ function getVersion(): string {
   return CURRENT_VERSION
 }
 
-function getLatestRelease(): Promise<GitHubRelease | null> {
+function getLatestRelease(): Promise<{ release: GitHubRelease | null; error?: string }> {
   return new Promise((resolve) => {
     const options = {
       hostname: 'api.github.com',
       path: `/repos/${REPO}/releases/latest`,
-      headers: { 'User-Agent': 'ConstruPro-ERP-Updater' }
+      headers: { 'User-Agent': 'ConstruPro-ERP-Updater' },
+      timeout: 15000
     }
 
-    https.get(options, (res) => {
+    const req = https.get(options, (res) => {
       if (res.statusCode !== 200) {
-        resolve(null)
+        resolve({ release: null, error: `GitHub retornou status ${res.statusCode}` })
         return
       }
       let data = ''
       res.on('data', (chunk: string) => { data += chunk })
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data))
+          resolve({ release: JSON.parse(data) })
         } catch {
-          resolve(null)
+          resolve({ release: null, error: 'Resposta do GitHub inválida.' })
         }
       })
-    }).on('error', () => resolve(null))
+    })
+
+    req.on('timeout', () => {
+      req.destroy()
+      resolve({ release: null, error: 'Tempo esgotado ao conectar com GitHub.' })
+    })
+
+    req.on('error', (err) => {
+      resolve({ release: null, error: `Erro de rede: ${err.message}` })
+    })
   })
 }
 
@@ -98,12 +108,14 @@ function extractZip(zipPath: string, dest: string): Promise<boolean> {
 }
 
 function runUpdateScript(updateDir: string): void {
+  const exeDir = path.dirname(app.getPath('exe'))
   const batContent = `@echo off
 echo Aguardando fechamento do ConstruPro ERP...
 timeout /t 3 /nobreak > nul
 echo Copiando atualizacao...
-xcopy /E /Y /I "${updateDir}\\out" "${path.join(app.getPath('exe'), '..', '..', 'out')}"
-xcopy /E /Y /I "${updateDir}\\version.json" "${path.join(app.getPath('exe'), '..', '..', 'version.json')}"
+xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out"
+copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json"
+copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json"
 echo Limpeza...
 rmdir /S /Q "${updateDir}"
 echo Iniciando ConstruPro ERP...
@@ -119,14 +131,15 @@ del "%~f0"
 export async function checkForUpdates(silent: boolean = false): Promise<boolean> {
   try {
     const currentVersion = getVersion()
-    const release = await getLatestRelease()
+    const { release, error } = await getLatestRelease()
 
     if (!release) {
+      const msg = error || 'Não foi possível verificar atualizações.\nVerifique sua conexão com a internet.'
       if (!silent) {
         dialog.showMessageBox({
           type: 'info',
           title: 'Verificação de Atualização',
-          message: 'Não foi possível verificar atualizations.\nVerifique sua conexão com a internet.',
+          message: msg,
           buttons: ['OK']
         })
       }
