@@ -117,16 +117,31 @@ function extractZip(zipPath: string, dest: string): Promise<boolean> {
 function runUpdateScript(updateDir: string): void {
   const exeDir = path.dirname(app.getPath('exe'))
   const batContent = `@echo off
+echo ============================================ >> "%TEMP%\\construpro-update.log"
+echo Atualizacao iniciada em %DATE% %TIME% >> "%TEMP%\\construpro-update.log"
+echo Update Dir: ${updateDir} >> "%TEMP%\\construpro-update.log"
+echo Exe Dir: ${exeDir} >> "%TEMP%\\construpro-update.log"
+
 echo Aguardando fechamento do ConstruPro ERP...
-timeout /t 3 /nobreak > nul
+timeout /t 5 /nobreak > nul
+
 echo Copiando atualizacao...
-xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out"
-copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json"
-copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json"
+echo Copiando out... >> "%TEMP%\\construpro-update.log"
+xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out" >> "%TEMP%\\construpro-update.log" 2>&1
+
+echo Copiando version.json... >> "%TEMP%\\construpro-update.log"
+copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json" >> "%TEMP%\\construpro-update.log" 2>&1
+
+echo Copiando token.json... >> "%TEMP%\\construpro-update.log"
+copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json" >> "%TEMP%\\construpro-update.log" 2>&1
+
 echo Limpeza...
-rmdir /S /Q "${updateDir}"
+rmdir /S /Q "${updateDir}" 2>nul
+
 echo Iniciando ConstruPro ERP...
 start "" "${app.getPath('exe')}"
+
+echo Finalizado >> "%TEMP%\\construpro-update.log"
 del "%~f0"
 `
 
