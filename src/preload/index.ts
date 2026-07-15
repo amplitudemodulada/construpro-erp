@@ -92,6 +92,10 @@ const api = {
     direct: (html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) =>
       ipcRenderer.invoke('print:direct', html, options),
   },
+  token: {
+    validate: () => ipcRenderer.invoke('token:validate'),
+    info: () => ipcRenderer.invoke('token:info'),
+  },
 }
 
 if (process.contextIsolated) {

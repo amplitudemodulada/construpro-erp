@@ -30,6 +30,7 @@ robocopy "node_modules\better-sqlite3" "%DEST%\node_modules\better-sqlite3" /E /
 robocopy "node_modules\bindings" "%DEST%\node_modules\bindings" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
 robocopy "node_modules\file-uri-to-path" "%DEST%\node_modules\file-uri-to-path" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
 copy /y "package.json" "%DEST%\package.json" >nul
+copy /y "token.json" "%DEST%\token.json" >nul
 
 :: Cria bat de inicializacao
 echo  [4/4] Criando iniciar.bat...

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, session, PrintToPDFOptions } from 'electron'
 import { join } from 'path'
 import { checkLicense, activateLicense, getLicenseInfo } from './license'
+import { isTokenValid, getTokenInfo, saveToken } from './token'
 import { registerClientesIpc } from './ipc/clientes'
 import { registerFornecedoresIpc } from './ipc/fornecedores'
 import { registerFuncionariosIpc } from './ipc/funcionarios'
@@ -62,6 +63,10 @@ function createWindow() {
 ipcMain.handle('license:check', () => checkLicense())
 ipcMain.handle('license:activate', (_, key: string) => activateLicense(key))
 ipcMain.handle('license:info', () => getLicenseInfo())
+
+// Token IPC
+ipcMain.handle('token:validate', () => isTokenValid())
+ipcMain.handle('token:info', () => getTokenInfo())
 
 // Register all module IPC handlers
 registerClientesIpc()
@@ -134,6 +139,26 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  // Verificar token de licença na inicialização
+  const tokenStatus = isTokenValid()
+  if (!tokenStatus.valid) {
+    dialog.showErrorBox('Licença', tokenStatus.message)
+    app.quit()
+    return
+  }
+
+  // Aviso se faltar pouco para expirar
+  if (tokenStatus.daysLeft && tokenStatus.daysLeft <= 30) {
+    setTimeout(() => {
+      dialog.showMessageBox({
+        type: 'warning',
+        title: 'Licença',
+        message: tokenStatus.message,
+        buttons: ['OK']
+      })
+    }, 3000)
+  }
 
   // Verificar atualização automaticamente após 10 segundos
   setTimeout(() => {
