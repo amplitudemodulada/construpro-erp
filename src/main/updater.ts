@@ -6,16 +6,7 @@ import path from 'path'
 
 const REPO = 'amplitudemodulada/construpro-erp'
 const CURRENT_VERSION = '1.0.0'
-
-interface GitHubRelease {
-  tag_name: string
-  name: string
-  assets: {
-    name: string
-    browser_download_url: string
-    size: number
-  }[]
-}
+const UPDATE_SERVER = 'https://construpro-erp.vercel.app/api/update'
 
 function getVersion(): string {
   // Procura version.json na pasta do executável e na pasta do app
@@ -40,34 +31,50 @@ function getVersion(): string {
   return CURRENT_VERSION
 }
 
-function getLatestRelease(): Promise<{ release: GitHubRelease | null; error?: string }> {
+interface UpdateInfo {
+  version: string
+  name: string
+  date: string
+  downloadUrl: string | null
+  fileName: string | null
+  fileSize: number
+  releaseNotes: string
+}
+
+function getLatestRelease(): Promise<{ release: UpdateInfo | null; error?: string }> {
   return new Promise((resolve) => {
+    const url = new URL(UPDATE_SERVER)
     const options = {
-      hostname: 'api.github.com',
-      path: `/repos/${REPO}/releases/latest`,
+      hostname: url.hostname,
+      path: url.pathname,
       headers: { 'User-Agent': 'ConstruPro-ERP-Updater' },
       timeout: 15000
     }
 
     const req = https.get(options, (res) => {
       if (res.statusCode !== 200) {
-        resolve({ release: null, error: `GitHub retornou status ${res.statusCode}` })
+        resolve({ release: null, error: `Servidor retornou status ${res.statusCode}` })
         return
       }
       let data = ''
       res.on('data', (chunk: string) => { data += chunk })
       res.on('end', () => {
         try {
-          resolve({ release: JSON.parse(data) })
+          const parsed = JSON.parse(data)
+          if (parsed.error) {
+            resolve({ release: null, error: parsed.error })
+          } else {
+            resolve({ release: parsed })
+          }
         } catch {
-          resolve({ release: null, error: 'Resposta do GitHub inválida.' })
+          resolve({ release: null, error: 'Resposta do servidor inválida.' })
         }
       })
     })
 
     req.on('timeout', () => {
       req.destroy()
-      resolve({ release: null, error: 'Tempo esgotado ao conectar com GitHub.' })
+      resolve({ release: null, error: 'Tempo esgotado ao verificar atualização.' })
     })
 
     req.on('error', (err) => {
@@ -146,7 +153,7 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
       return false
     }
 
-    const latestVersion = release.tag_name.replace('v', '')
+    const latestVersion = release.version
 
     if (latestVersion === currentVersion) {
       if (!silent) {
@@ -170,9 +177,8 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
 
     if (response.response !== 0) return false
 
-    const asset = release.assets.find((a: any) => a.name.endsWith('.zip'))
-    if (!asset) {
-      dialog.showErrorBox('Erro', 'Nenhum arquivo de atualização encontrado no GitHub.')
+    if (!release.downloadUrl) {
+      dialog.showErrorBox('Erro', 'Nenhum arquivo de atualização encontrado.')
       return false
     }
 
@@ -190,7 +196,7 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
 
     progressWin.loadURL(`data:text/html,<html><body style="background:#111;color:#22c55e;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h2 style="margin:0 0 10px 0">Atualizando...</h2><p id="status">Baixando atualização...</p></div></body></html>`)
 
-    const downloaded = await downloadFile(asset.browser_download_url, zipPath)
+    const downloaded = await downloadFile(release.downloadUrl, zipPath)
 
     if (!downloaded) {
       progressWin.close()
