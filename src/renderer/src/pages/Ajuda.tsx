@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Users, Truck, UserCheck, Package,
   Layers, ShoppingCart, DollarSign, Database,
-  ChevronDown, ChevronRight, HelpCircle, Barcode, RefreshCw
+  ChevronDown, ChevronRight, HelpCircle, Barcode, RefreshCw, Key
 } from 'lucide-react'
 
 const topicos = [
@@ -177,6 +177,11 @@ const topicos = [
 export default function Ajuda() {
   const [aberto, setAberto] = useState<number | null>(0)
   const [verificando, setVerificando] = useState(false)
+  const [tokenInfo, setTokenInfo] = useState<any>(null)
+
+  useEffect(() => {
+    window.api.token.info().then(setTokenInfo).catch(() => {})
+  }, [])
 
   const verificarAtualizacao = async () => {
     setVerificando(true)
@@ -269,6 +274,35 @@ export default function Ajuda() {
           )
         })}
       </div>
+
+      {tokenInfo && (
+        <div className="card p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Key size={18} className="text-green-600" />
+            <span className="font-semibold text-slate-800">Licença do Sistema</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-slate-500">Token:</span>
+              <span className="ml-2 font-mono text-slate-700">{tokenInfo.token}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Empresa:</span>
+              <span className="ml-2 text-slate-700">{tokenInfo.empresa}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Validade:</span>
+              <span className="ml-2 text-slate-700">{new Date(tokenInfo.validade).toLocaleDateString('pt-BR')}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Dias restantes:</span>
+              <span className={`ml-2 font-bold ${tokenInfo.diasRestantes <= 30 ? 'text-red-600' : 'text-green-600'}`}>
+                {tokenInfo.diasRestantes} dia(s)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card p-4 flex items-center justify-between">
         <div>
