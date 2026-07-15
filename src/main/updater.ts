@@ -1,35 +1,11 @@
-import { app, dialog, shell, BrowserWindow } from 'electron'
+import { app, dialog } from 'electron'
 import { exec } from 'child_process'
 import https from 'https'
 import fs from 'fs'
 import path from 'path'
 
-const REPO = 'amplitudemodulada/construpro-erp'
 const CURRENT_VERSION = '1.0.0'
 const UPDATE_SERVER = 'https://construpro-updater.vercel.app/api/update'
-
-function getVersion(): string {
-  // Procura version.json na pasta do executável e na pasta do app
-  const exeDir = path.dirname(app.getPath('exe'))
-  const appDir = path.dirname(exeDir)
-
-  const paths = [
-    path.join(exeDir, 'version.json'),
-    path.join(appDir, 'version.json'),
-    path.join(process.cwd(), 'version.json'),
-    path.join(__dirname, '..', '..', 'version.json'),
-  ]
-
-  for (const p of paths) {
-    if (fs.existsSync(p)) {
-      try {
-        const data = JSON.parse(fs.readFileSync(p, 'utf-8'))
-        return data.version || CURRENT_VERSION
-      } catch {}
-    }
-  }
-  return CURRENT_VERSION
-}
 
 interface UpdateInfo {
   version: string
@@ -41,17 +17,75 @@ interface UpdateInfo {
   releaseNotes: string
 }
 
+function getVersion(): string {
+  const exeDir = path.dirname(app.getPath('exe'))
+  const paths = [
+    path.join(exeDir, 'version.json'),
+    path.join(process.cwd(), 'version.json'),
+    path.join(__dirname, '..', '..', 'version.json'),
+  ]
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(p, 'utf-8'))
+        return data.version || CURRENT_VERSION
+      } catch {}
+    }
+  }
+  return CURRENT_VERSION
+}
+
+function getUpdateDir(): string {
+  return path.join(app.getPath('temp'), 'construpro-update')
+}
+
+function isUpdatePending(): boolean {
+  return fs.existsSync(path.join(getUpdateDir(), 'out'))
+}
+
+function applyPendingUpdate(): boolean {
+  const updateDir = getUpdateDir()
+  const exeDir = path.dirname(app.getPath('exe'))
+
+  if (!fs.existsSync(path.join(updateDir, 'out'))) return false
+
+  try {
+    const copyDir = (src: string, dest: string) => {
+      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true })
+      for (const item of fs.readdirSync(src)) {
+        const s = path.join(src, item)
+        const d = path.join(dest, item)
+        if (fs.statSync(s).isDirectory()) {
+          copyDir(s, d)
+        } else {
+          fs.copyFileSync(s, d)
+        }
+      }
+    }
+
+    copyDir(path.join(updateDir, 'out'), path.join(exeDir, 'out'))
+
+    const vSrc = path.join(updateDir, 'version.json')
+    const tSrc = path.join(updateDir, 'token.json')
+    if (fs.existsSync(vSrc)) fs.copyFileSync(vSrc, path.join(exeDir, 'version.json'))
+    if (fs.existsSync(tSrc)) fs.copyFileSync(tSrc, path.join(exeDir, 'token.json'))
+
+    fs.rmSync(updateDir, { recursive: true, force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function getLatestRelease(): Promise<{ release: UpdateInfo | null; error?: string }> {
   return new Promise((resolve) => {
     const url = new URL(UPDATE_SERVER)
-    const options = {
+    const req = https.get({
       hostname: url.hostname,
       path: url.pathname,
       headers: { 'User-Agent': 'ConstruPro-ERP-Updater' },
       timeout: 15000
-    }
-
-    const req = https.get(options, (res) => {
+    }, (res) => {
       if (res.statusCode !== 200) {
         resolve({ release: null, error: `Servidor retornou status ${res.statusCode}` })
         return
@@ -61,106 +95,57 @@ function getLatestRelease(): Promise<{ release: UpdateInfo | null; error?: strin
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data)
-          if (parsed.error) {
-            resolve({ release: null, error: parsed.error })
-          } else {
-            resolve({ release: parsed })
-          }
+          if (parsed.error) resolve({ release: null, error: parsed.error })
+          else resolve({ release: parsed })
         } catch {
-          resolve({ release: null, error: 'Resposta do servidor inválida.' })
+          resolve({ release: null, error: 'Resposta inválida do servidor.' })
         }
       })
     })
-
-    req.on('timeout', () => {
-      req.destroy()
-      resolve({ release: null, error: 'Tempo esgotado ao verificar atualização.' })
-    })
-
-    req.on('error', (err) => {
-      resolve({ release: null, error: `Erro de rede: ${err.message}` })
-    })
+    req.on('timeout', () => { req.destroy(); resolve({ release: null, error: 'Tempo esgotado.' }) })
+    req.on('error', (err) => { resolve({ release: null, error: `Erro de rede: ${err.message}` }) })
   })
 }
 
 function downloadFile(url: string, dest: string): Promise<boolean> {
   return new Promise((resolve) => {
     const file = fs.createWriteStream(dest)
-    https.get(url, { headers: { 'User-Agent': 'ConstruPro-ERP-Updater' } }, (response) => {
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        https.get(response.headers.location!, { headers: { 'User-Agent': 'ConstruPro-ERP-Updater' } }, (res2) => {
-          res2.pipe(file)
-          file.on('finish', () => { file.close(); resolve(true) })
-        }).on('error', () => { fs.unlink(dest, () => {}); resolve(false) })
-        return
-      }
-      response.pipe(file)
-      file.on('finish', () => { file.close(); resolve(true) })
-    }).on('error', () => { fs.unlink(dest, () => {}); resolve(false) })
+    const doDownload = (downloadUrl: string) => {
+      https.get(downloadUrl, { headers: { 'User-Agent': 'ConstruPro-ERP-Updater' } }, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          doDownload(response.headers.location!)
+          return
+        }
+        response.pipe(file)
+        file.on('finish', () => { file.close(); resolve(true) })
+      }).on('error', () => { fs.unlink(dest, () => {}); resolve(false) })
+    }
+    doDownload(url)
   })
 }
 
 function extractZip(zipPath: string, dest: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const cmd = `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${dest}' -Force"`
-    exec(cmd, (error) => {
-      if (error) {
-        console.error('Erro ao extrair zip:', error)
-        resolve(false)
-        return
-      }
-      resolve(true)
+    exec(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${dest}' -Force"`, (error) => {
+      resolve(!error)
     })
   })
 }
 
-function runUpdateScript(updateDir: string): void {
-  const exeDir = path.dirname(app.getPath('exe'))
-  const exePath = app.getPath('exe')
-  const logFile = path.join(app.getPath('temp'), 'construpro-update.log')
+export async function checkAndApplyUpdates(): Promise<void> {
+  if (!isUpdatePending()) return
 
-  const batContent = `@echo off
-echo ============================================ > "${logFile}"
-echo Atualizacao iniciada em %DATE% %TIME% >> "${logFile}"
-echo Update Dir: ${updateDir} >> "${logFile}"
-echo Exe Dir: ${exeDir} >> "${logFile}"
-echo. >> "${logFile}"
-
-if not exist "${updateDir}\\out" (
-  echo ERRO: Pasta out nao encontrada >> "${logFile}"
-  dir "${updateDir}" /b >> "${logFile}" 2>&1
-  goto ABRIR
-)
-
-echo Pasta out OK >> "${logFile}"
-
-:ESPERAR
-tasklist /FI "IMAGENAME eq electron.exe" 2>nul | find /I "electron.exe" >nul
-if %ERRORLEVEL% equ 0 (
-  echo App ainda rodando, aguardando... >> "${logFile}"
-  timeout /t 2 /nobreak > nul
-  goto ESPERAR
-)
-
-echo App fechado. Copiando arquivos... >> "${logFile}"
-xcopy /E /Y /I "${updateDir}\\out" "${exeDir}\\out" >> "${logFile}" 2>&1
-echo xcopy saida: %ERRORLEVEL% >> "${logFile}"
-copy /Y "${updateDir}\\version.json" "${exeDir}\\version.json" >> "${logFile}" 2>&1
-copy /Y "${updateDir}\\token.json" "${exeDir}\\token.json" >> "${logFile}" 2>&1
-
-echo Limpeza... >> "${logFile}"
-rmdir /S /Q "${updateDir}" 2>nul
-
-:ABRIR
-echo Finalizado em %DATE% %TIME% >> "${logFile}"
-echo Iniciando ConstruPro ERP...
-start "" "${exePath}"
-del "%~f0"
-`
-
-  const batPath = path.join(app.getPath('temp'), 'construpro-update.bat')
-  fs.writeFileSync(batPath, batContent)
-  exec(`cmd /c start "" "${batPath}"`)
+  const applied = applyPendingUpdate()
+  if (applied) {
+    setTimeout(() => {
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Atualização Aplicada',
+        message: 'Sistema atualizado com sucesso! A nova versão já está ativa.',
+        buttons: ['OK']
+      })
+    }, 2000)
+  }
 }
 
 export async function checkForUpdates(silent: boolean = false): Promise<boolean> {
@@ -169,26 +154,23 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
     const { release, error } = await getLatestRelease()
 
     if (!release) {
-      const msg = error || 'Não foi possível verificar atualizações.\nVerifique sua conexão com a internet.'
       if (!silent) {
         dialog.showMessageBox({
           type: 'info',
           title: 'Verificação de Atualização',
-          message: msg,
+          message: error || 'Não foi possível verificar atualizações.',
           buttons: ['OK']
         })
       }
       return false
     }
 
-    const latestVersion = release.version
-
-    if (latestVersion === currentVersion) {
+    if (release.version === currentVersion) {
       if (!silent) {
         dialog.showMessageBox({
           type: 'info',
           title: 'Verificação de Atualização',
-          message: `Você já está usando a versão mais recente (${currentVersion}).`,
+          message: `Versão atual: ${currentVersion}\nNenhuma atualização disponível.`,
           buttons: ['OK']
         })
       }
@@ -198,65 +180,49 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
     const response = await dialog.showMessageBox({
       type: 'info',
       title: 'Atualização Disponível',
-      message: `Nova versão disponível: ${latestVersion}\nSua versão: ${currentVersion}\n\nDeseja atualizar agora?`,
-      buttons: ['Sim, Atualizar', 'Mais Tarde'],
+      message: `Nova versão: ${release.version}\nSua versão: ${currentVersion}\n\nDeseja baixar a atualização?`,
+      buttons: ['Sim, Baixar', 'Mais Tarde'],
       defaultId: 0
     })
 
     if (response.response !== 0) return false
 
     if (!release.downloadUrl) {
-      dialog.showErrorBox('Erro', 'Nenhum arquivo de atualização encontrado.')
+      dialog.showErrorBox('Erro', 'Arquivo de atualização não encontrado.')
       return false
     }
 
-    const tempDir = path.join(app.getPath('temp'), 'construpro-update-temp')
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
+    const updateDir = getUpdateDir()
+    if (fs.existsSync(updateDir)) fs.rmSync(updateDir, { recursive: true, force: true })
+    fs.mkdirSync(updateDir, { recursive: true })
 
-    const zipPath = path.join(tempDir, 'update.zip')
-
-    const progressWin = new BrowserWindow({
-      width: 400, height: 150,
-      frame: false,
-      resizable: false,
-      webPreferences: { nodeIntegration: true }
-    })
-
-    progressWin.loadURL(`data:text/html,<html><body style="background:#111;color:#22c55e;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h2 style="margin:0 0 10px 0">Atualizando...</h2><p id="status">Baixando atualização...</p></div></body></html>`)
+    const zipPath = path.join(updateDir, 'update.zip')
 
     const downloaded = await downloadFile(release.downloadUrl, zipPath)
-
     if (!downloaded) {
-      progressWin.close()
-      dialog.showErrorBox('Erro', 'Falha ao baixar a atualização.')
+      dialog.showErrorBox('Erro', 'Falha ao baixar atualização.')
       return false
     }
 
-    progressWin.webContents.executeJavaScript('document.getElementById("status").textContent = "Extraindo arquivos..."')
-
-    const extracted = await extractZip(zipPath, tempDir)
-
+    const extracted = await extractZip(zipPath, updateDir)
     if (!extracted) {
-      progressWin.close()
-      dialog.showErrorBox('Erro', 'Falha ao extrair a atualização.')
-      fs.rmSync(tempDir, { recursive: true, force: true })
+      dialog.showErrorBox('Erro', 'Falha ao extrair atualização.')
       return false
     }
 
-    progressWin.webContents.executeJavaScript('document.getElementById("status").textContent = "Instalando..."')
+    try { fs.unlinkSync(zipPath) } catch {}
 
-    fs.rmSync(zipPath, { force: true })
+    await dialog.showMessageBox({
+      type: 'info',
+      title: 'Atualização Baixada',
+      message: 'Atualização pronta!\n\nReinicie o sistema para aplicar.',
+      buttons: ['OK']
+    })
 
-    runUpdateScript(tempDir)
-    progressWin.close()
-
-    app.quit()
     return true
-
-  } catch (error) {
-    console.error('Erro ao verificar atualização:', error)
+  } catch (err) {
     if (!silent) {
-      dialog.showErrorBox('Erro', 'Erro ao verificar atualização.')
+      dialog.showErrorBox('Erro', `Erro ao verificar atualização: ${err}`)
     }
     return false
   }

@@ -11,7 +11,7 @@ import { registerVendasIpc } from './ipc/vendas'
 import { registerFinanceiroIpc } from './ipc/financeiro'
 import { registerRelatoriosIpc } from './ipc/relatorios'
 import { registerBackupIpc } from './ipc/backup'
-import { checkForUpdates } from './updater'
+import { checkForUpdates, checkAndApplyUpdates } from './updater'
 
 const isDev = process.defaultApp === true || process.env.NODE_ENV === 'development'
 
@@ -159,6 +159,9 @@ app.whenReady().then(() => {
       })
     }, 3000)
   }
+
+  // Aplicar atualização pendente (baixada na sessão anterior)
+  checkAndApplyUpdates()
 
   // Verificar atualização automaticamente após 10 segundos
   setTimeout(() => {
