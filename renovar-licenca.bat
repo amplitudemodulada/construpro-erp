@@ -34,10 +34,17 @@ echo.
 set /p PUBLICAR="Publicar no GitHub? (S/N): "
 if /I "%PUBLICAR%"=="S" (
     echo.
-    echo  Publicando...
+    echo  Publicando no GitHub...
     git add token.json
     git commit -m "chore: renovar licenca ate %NOVA_DATA%"
     git push
+    echo.
+    echo  GitHub publicado!
+    echo.
+    echo  Atualizando servidor de atualizacoes (Vercel)...
+    cd /d "C:\projetos\OPENCODE\construpro-updater"
+    vercel --yes --prod
+    cd /d "%~dp0"
     echo.
     echo  Pronto! Cliente recebera automaticamente.
 )
