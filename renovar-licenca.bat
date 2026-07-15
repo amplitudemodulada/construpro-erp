@@ -48,7 +48,7 @@ echo  Versao: %OLD_VER% ^> %NEW_VER%
 echo.
 
 :: Perguntar se quer publicar
-set /p PUBLICAR="Publicar no GitHub + Vercel? (S/N): "
+set /p PUBLICAR="Publicar no Vercel? (S/N): "
 if /I not "%PUBLICAR%"=="S" (
     echo  Publicacao cancelada.
     pause
@@ -56,7 +56,9 @@ if /I not "%PUBLICAR%"=="S" (
 )
 
 :: Build do instalador
-echo  [1/4] Gerando instalador v%NEW_VER%...
+echo  [1/5] Gerando instalador v%NEW_VER%...
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+set WIN_CSC_LINK=
 call npm run dist
 if errorlevel 1 (
     echo  ERRO no build!
@@ -64,37 +66,40 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Publicar no GitHub
-echo  [2/4] Publicando no GitHub...
-git add token.json token.dat version.json package.json
+:: Commit e push
+echo  [2/5] Publicando no GitHub...
+git add -A
 git commit -m "chore: renovar licenca ate %NOVA_DATA% - v%NEW_VER%"
 git push
-git tag v%NEW_VER%
-git push origin v%NEW_VER%
 
-:: Criar release com o instalador
-echo  [3/4] Criando release v%NEW_VER%...
-gh release create v%NEW_VER% "dist\ConstruPro-ERP-%NEW_VER%-Setup.exe" --title "ConstruPro ERP v%NEW_VER%" --notes "Renovacao de licenca - validade: %NOVA_DATA%" --clobber
+:: Copiar instalador para o Vercel
+echo  [3/5] Preparando para Vercel...
+copy /Y "dist\ConstruPro-ERP-%NEW_VER%-Setup.exe" "C:\projetos\OPENCODE\construpro-updater\public\ConstruPro-ERP-Setup.exe"
 
 :: Atualizar API do Vercel
-echo  [4/4] Atualizando servidor de atualizacoes...
-cd /d "C:\projetos\OPENCODE\construpro-updater"
+echo  [4/5] Atualizando API...
 (
 echo export default async function handler(req, res^) {
 echo   res.setHeader('Access-Control-Allow-Origin', '*'^)
+echo   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS'^)
+echo   res.setHeader('Access-Control-Allow-Headers', 'Content-Type'^)
 echo   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'^)
 echo   if (req.method === 'OPTIONS'^) return res.status(200^).end(^)
-echo   return res.status(200^).json({
+echo   const data = {
 echo     version: '%NEW_VER%',
-echo     name: 'ConstruPro ERP %NEW_VER%',
+echo     name: 'ConstruPro ERP v%NEW_VER%',
 echo     date: new Date(^).toISOString(^),
-echo     downloadUrl: 'https://github.com/amplitudemodulada/construpro-erp/releases/download/v%NEW_VER%/ConstruPro-ERP-%NEW_VER%-Setup.exe',
-echo     fileName: 'ConstruPro-ERP-%NEW_VER%-Setup.exe',
-echo     releaseNotes: 'Renovacao de licenca'
-echo   }^)
+echo     downloadUrl: 'https://construpro-updater.vercel.app/ConstruPro-ERP-Setup.exe',
+echo     fileName: 'ConstruPro-ERP-Setup.exe',
+echo     releaseNotes: 'Renovacao de licenca - validade: %NOVA_DATA%'
+echo   }
+echo   return res.status(200^).json(data^)
 echo }
-) > "api\update\index.js"
+) > "C:\projetos\OPENCODE\construpro-updater\api\update\index.js"
 
+:: Publicar no Vercel
+echo  [5/5] Publicando no Vercel...
+cd /d "C:\projetos\OPENCODE\construpro-updater"
 call vercel --yes --prod
 cd /d "%~dp0"
 
@@ -105,10 +110,8 @@ echo  ============================================
 echo.
 echo  Versao: %NEW_VER%
 echo  Licenca valida ate: %NOVA_DATA%
-echo  GitHub: release criada
-echo  Vercel: API atualizada
-echo.
-echo  O cliente detecta a atualizacao automaticamente!
+echo  Vercel: API + instalador atualizados
+echo  Cliente: detecta atualizacao automaticamente
 echo  ============================================
 echo.
 pause

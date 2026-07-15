@@ -29,17 +29,11 @@ if /I "%INCREMENTAR%"=="S" (
 
 :: Build do instalador
 echo  [1/5] Gerando instalador v%VERSION%...
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+set WIN_CSC_LINK=
 call npm run dist
 if errorlevel 1 (
     echo  ERRO no build!
-    pause
-    exit /b 1
-)
-
-:: Verificar se o instalador foi gerado
-if not exist "dist\ConstruPro-ERP-%VERSION%-Setup.exe" (
-    echo  ERRO: Instalador nao encontrado em dist\
-    dir dist\*.exe 2>nul
     pause
     exit /b 1
 )
@@ -50,24 +44,12 @@ git add -A
 git commit -m "chore: release v%VERSION%"
 git push
 
-:: Tag
-echo  [3/5] Criando tag v%VERSION%...
-git tag v%VERSION%
-git push origin v%VERSION%
-
-:: Criar release no GitHub
-echo  [4/5] Criando release v%VERSION%...
-gh release create "v%VERSION%" "dist\ConstruPro-ERP-%VERSION%-Setup.exe" --title "ConstruPro ERP v%VERSION%" --notes "Atualizacao do sistema ConstruPro ERP v%VERSION%" --clobber
-
-if %errorlevel% neq 0 (
-    echo  ERRO ao criar release!
-    pause
-    exit /b 1
-)
+:: Copiar instalador para o Vercel (pasta public)
+echo  [3/5] Preparando para Vercel...
+copy /Y "dist\ConstruPro-ERP-%VERSION%-Setup.exe" "C:\projetos\OPENCODE\construpro-updater\public\ConstruPro-ERP-Setup.exe"
 
 :: Atualizar API do Vercel
-echo  [5/5] Atualizando servidor de atualizacoes...
-cd /d "C:\projetos\OPENCODE\construpro-updater"
+echo  [4/5] Atualizando API...
 (
 echo export default async function handler(req, res^) {
 echo   res.setHeader('Access-Control-Allow-Origin', '*'^)
@@ -79,14 +61,17 @@ echo   const data = {
 echo     version: '%VERSION%',
 echo     name: 'ConstruPro ERP v%VERSION%',
 echo     date: new Date(^).toISOString(^),
-echo     downloadUrl: 'https://github.com/amplitudemodulada/construpro-erp/releases/download/v%VERSION%/ConstruPro-ERP-%VERSION%-Setup.exe',
-echo     fileName: 'ConstruPro-ERP-%VERSION%-Setup.exe',
-echo     releaseNotes: 'Atualizacao do sistema ConstruPro ERP v%VERSION%'
+echo     downloadUrl: 'https://construpro-updater.vercel.app/ConstruPro-ERP-Setup.exe',
+echo     fileName: 'ConstruPro-ERP-Setup.exe',
+echo     releaseNotes: 'Atualizacao v%VERSION%'
 echo   }
 echo   return res.status(200^).json(data^)
 echo }
-) > "api\update\index.js"
+) > "C:\projetos\OPENCODE\construpro-updater\api\update\index.js"
 
+:: Publicar no Vercel
+echo  [5/5] Publicando no Vercel...
+cd /d "C:\projetos\OPENCODE\construpro-updater"
 call vercel --yes --prod
 cd /d "%~dp0"
 
@@ -95,9 +80,8 @@ echo  ============================================
 echo   PRONTO! Release v%VERSION% publicada!
 echo  ============================================
 echo.
-echo  GitHub: release criada com instalador
-echo  Vercel: API de atualizacao atualizada
-echo  Cliente: detecta atualizacao automaticamente
+echo  Vercel: API + instalador atualizados
+echo  Cliente: detecta e baixa automaticamente
 echo  ============================================
 echo.
 pause
