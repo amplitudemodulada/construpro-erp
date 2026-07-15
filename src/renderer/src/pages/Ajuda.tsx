@@ -178,9 +178,15 @@ export default function Ajuda() {
   const [aberto, setAberto] = useState<number | null>(0)
   const [verificando, setVerificando] = useState(false)
   const [tokenInfo, setTokenInfo] = useState<any>(null)
+  const [versao, setVersao] = useState('...')
+  const [versaoRemota, setVersaoRemota] = useState<string | null>(null)
 
   useEffect(() => {
     window.api.token.info().then(setTokenInfo).catch(() => {})
+    window.api.app.version().then((v: string) => setVersao(v)).catch(() => {})
+    window.api.update.latest().then((r: any) => {
+      if (r?.version) setVersaoRemota(r.version)
+    }).catch(() => {})
   }, [])
 
   const verificarAtualizacao = async () => {
@@ -307,7 +313,15 @@ export default function Ajuda() {
       <div className="card p-4 flex items-center justify-between">
         <div>
           <div className="font-semibold text-slate-800">Verificar Atualizações</div>
-          <div className="text-sm text-slate-500">Versão 1.0.0 — Verifique se há novas versões disponíveis</div>
+          <div className="text-sm text-slate-500">
+            Versão {versao}
+            {versaoRemota && versaoRemota !== versao && (
+              <span className="ml-2 text-orange-600 font-medium">→ v{versaoRemota} disponível</span>
+            )}
+            {versaoRemota && versaoRemota === versao && (
+              <span className="ml-2 text-green-600">✓ Atualizado</span>
+            )}
+          </div>
         </div>
         <button
           onClick={verificarAtualizacao}

@@ -1,28 +1,37 @@
+import { autoUpdater } from 'electron-updater'
 import { app, dialog } from 'electron'
-import { exec } from 'child_process'
+import log from 'electron-log'
 import https from 'https'
 import fs from 'fs'
 import path from 'path'
+import { exec } from 'child_process'
 
-const CURRENT_VERSION = '1.0.0'
+const CURRENT_VERSION = '1.1.1'
 const UPDATE_SERVER = 'https://construpro-updater.vercel.app/api/update'
 
-interface UpdateInfo {
-  version: string
-  name: string
-  date: string
-  downloadUrl: string | null
-  fileName: string | null
-  fileSize: number
-  releaseNotes: string
+function parseSemver(v: string): [number, number, number] {
+  const match = v.replace(/[^0-9.]/g, '').split('.')
+  return [
+    parseInt(match[0] || '0', 10),
+    parseInt(match[1] || '0', 10),
+    parseInt(match[2] || '0', 10)
+  ]
 }
 
-function getVersion(): string {
-  const exeDir = path.dirname(app.getPath('exe'))
+function isNewerVersion(remote: string, local: string): boolean {
+  const [rMajor, rMinor, rPatch] = parseSemver(remote)
+  const [lMajor, lMinor, lPatch] = parseSemver(local)
+  if (rMajor !== lMajor) return rMajor > lMajor
+  if (rMinor !== lMinor) return rMinor > lMinor
+  return rPatch > lPatch
+}
+
+export function getVersion(): string {
+  const appPath = app.getAppPath()
   const paths = [
-    path.join(exeDir, 'version.json'),
+    path.join(appPath, 'version.json'),
+    path.join(app.getPath('exe'), '..', 'version.json'),
     path.join(process.cwd(), 'version.json'),
-    path.join(__dirname, '..', '..', 'version.json'),
   ]
   for (const p of paths) {
     if (fs.existsSync(p)) {
@@ -35,85 +44,7 @@ function getVersion(): string {
   return CURRENT_VERSION
 }
 
-function getUpdateDir(): string {
-  return path.join(app.getPath('temp'), 'construpro-update')
-}
-
-function isUpdatePending(): boolean {
-  return fs.existsSync(path.join(getUpdateDir(), 'out'))
-}
-
-function applyPendingUpdate(): boolean {
-  const updateDir = getUpdateDir()
-  const exeDir = path.dirname(app.getPath('exe'))
-  const logFile = path.join(app.getPath('temp'), 'construpro-apply.log')
-
-  const log = (msg: string) => {
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`)
-  }
-
-  fs.writeFileSync(logFile, `=== Aplicando atualização ===\n`)
-  log(`Update dir: ${updateDir}`)
-  log(`Exe dir: ${exeDir}`)
-
-  const outDir = path.join(updateDir, 'out')
-  if (!fs.existsSync(outDir)) {
-    log('ERRO: pasta out/ não encontrada no update')
-    return false
-  }
-
-  try {
-    log('Conteúdo da pasta out:')
-    fs.readdirSync(outDir).forEach(f => log(`  - ${f}`))
-
-    const destOut = path.join(exeDir, 'out')
-    log(`Copiando para: ${destOut}`)
-
-    const copyDir = (src: string, dest: string) => {
-      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true })
-      for (const item of fs.readdirSync(src)) {
-        const s = path.join(src, item)
-        const d = path.join(dest, item)
-        if (fs.statSync(s).isDirectory()) {
-          copyDir(s, d)
-        } else {
-          fs.copyFileSync(s, d)
-          log(`  Copiado: ${path.relative(updateDir, s)}`)
-        }
-      }
-    }
-
-    copyDir(outDir, destOut)
-
-    const vSrc = path.join(updateDir, 'version.json')
-    const tSrc = path.join(updateDir, 'token.json')
-    if (fs.existsSync(vSrc)) {
-      fs.copyFileSync(vSrc, path.join(exeDir, 'version.json'))
-      log('version.json copiado')
-    }
-    if (fs.existsSync(tSrc)) {
-      fs.copyFileSync(tSrc, path.join(exeDir, 'token.json'))
-      log('token.json copiado')
-    }
-
-    // Verificar se a versão foi atualizada
-    const vDest = path.join(exeDir, 'version.json')
-    if (fs.existsSync(vDest)) {
-      const vData = JSON.parse(fs.readFileSync(vDest, 'utf-8'))
-      log(`Versão após cópia: ${vData.version}`)
-    }
-
-    fs.rmSync(updateDir, { recursive: true, force: true })
-    log('Pasta de update removida')
-    log('Sucesso!')
-    return true
-  } catch (err: any) {
-    log(`ERRO: ${err.message}`)
-    return false
-  }
-}
-
-function getLatestRelease(): Promise<{ release: UpdateInfo | null; error?: string }> {
+export function getLatestRelease(): Promise<{ version: string; downloadUrl: string; fileName: string } | null> {
   return new Promise((resolve) => {
     const url = new URL(UPDATE_SERVER)
     const req = https.get({
@@ -123,7 +54,7 @@ function getLatestRelease(): Promise<{ release: UpdateInfo | null; error?: strin
       timeout: 15000
     }, (res) => {
       if (res.statusCode !== 200) {
-        resolve({ release: null, error: `Servidor retornou status ${res.statusCode}` })
+        resolve(null)
         return
       }
       let data = ''
@@ -131,77 +62,103 @@ function getLatestRelease(): Promise<{ release: UpdateInfo | null; error?: strin
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data)
-          if (parsed.error) resolve({ release: null, error: parsed.error })
-          else resolve({ release: parsed })
+          if (parsed.version && parsed.downloadUrl) {
+            resolve(parsed)
+          } else {
+            resolve(null)
+          }
         } catch {
-          resolve({ release: null, error: 'Resposta inválida do servidor.' })
+          resolve(null)
         }
       })
     })
-    req.on('timeout', () => { req.destroy(); resolve({ release: null, error: 'Tempo esgotado.' }) })
-    req.on('error', (err) => { resolve({ release: null, error: `Erro de rede: ${err.message}` }) })
+    req.on('timeout', () => { req.destroy(); resolve(null) })
+    req.on('error', () => { resolve(null) })
   })
 }
 
-function downloadFile(url: string, dest: string): Promise<boolean> {
+function downloadFile(url: string, dest: string, onProgress?: (percent: number) => void): Promise<boolean> {
   return new Promise((resolve) => {
-    const file = fs.createWriteStream(dest)
     const doDownload = (downloadUrl: string) => {
       https.get(downloadUrl, { headers: { 'User-Agent': 'ConstruPro-ERP-Updater' } }, (response) => {
         if (response.statusCode === 301 || response.statusCode === 302) {
           doDownload(response.headers.location!)
           return
         }
+        if (response.statusCode !== 200) {
+          resolve(false)
+          return
+        }
+        const totalSize = parseInt(response.headers['content-length'] || '0', 10)
+        let downloadedSize = 0
+
+        const file = fs.createWriteStream(dest)
         response.pipe(file)
+
+        response.on('data', (chunk: Buffer) => {
+          downloadedSize += chunk.length
+          if (totalSize > 0 && onProgress) {
+            onProgress(Math.round((downloadedSize / totalSize) * 100))
+          }
+        })
+
         file.on('finish', () => { file.close(); resolve(true) })
-      }).on('error', () => { fs.unlink(dest, () => {}); resolve(false) })
+      }).on('error', () => { resolve(false) })
     }
     doDownload(url)
   })
 }
 
-function extractZip(zipPath: string, dest: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    exec(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${dest}' -Force"`, (error) => {
-      resolve(!error)
+function getTempDir(): string {
+  const dir = path.join(app.getPath('temp'), 'construpro-update')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+function applyUpdate(exePath: string): void {
+  const logFile = path.join(app.getPath('temp'), 'construpro-apply.log')
+  const log = (msg: string) => fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`)
+
+  fs.writeFileSync(logFile, `=== Aplicando atualização ===\n`)
+  log(`Installer: ${exePath}`)
+
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Atualização Baixada',
+    message: 'Atualização pronta!\n\nO instalador será aberto. Siga os passos para atualizar.\n\nO sistema será fechado.',
+    buttons: ['OK']
+  }).then(() => {
+    exec(`start "" "${exePath}"`, () => {
+      app.quit()
     })
   })
 }
 
-export async function checkAndApplyUpdates(): Promise<void> {
-  if (!isUpdatePending()) return
-
-  const applied = applyPendingUpdate()
-  if (applied) {
-    setTimeout(() => {
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'Atualização Aplicada',
-        message: 'Sistema atualizado com sucesso! A nova versão já está ativa.',
-        buttons: ['OK']
-      })
-    }, 2000)
-  }
+export function initUpdater(): void {
+  log.info('Updater inicializado')
 }
 
 export async function checkForUpdates(silent: boolean = false): Promise<boolean> {
   try {
     const currentVersion = getVersion()
-    const { release, error } = await getLatestRelease()
+    log.info(`Versão atual: ${currentVersion}`)
 
+    const release = await getLatestRelease()
     if (!release) {
       if (!silent) {
         dialog.showMessageBox({
           type: 'info',
           title: 'Verificação de Atualização',
-          message: error || 'Não foi possível verificar atualizações.',
+          message: 'Nenhuma atualização disponível.',
           buttons: ['OK']
         })
       }
       return false
     }
 
-    if (release.version === currentVersion) {
+    log.info(`Versão remota: ${release.version}`)
+
+    if (!isNewerVersion(release.version, currentVersion)) {
       if (!silent) {
         dialog.showMessageBox({
           type: 'info',
@@ -223,43 +180,57 @@ export async function checkForUpdates(silent: boolean = false): Promise<boolean>
 
     if (response.response !== 0) return false
 
-    if (!release.downloadUrl) {
-      dialog.showErrorBox('Erro', 'Arquivo de atualização não encontrado.')
-      return false
-    }
+    const updateDir = getTempDir()
+    const installerPath = path.join(updateDir, release.fileName || 'ConstruPro-ERP-Setup.exe')
 
-    const updateDir = getUpdateDir()
-    if (fs.existsSync(updateDir)) fs.rmSync(updateDir, { recursive: true, force: true })
-    fs.mkdirSync(updateDir, { recursive: true })
+    const progressWin = new (require('electron').BrowserWindow)({
+      width: 400, height: 150, show: false, resizable: false,
+      title: 'Baixando atualização...',
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true
+    })
 
-    const zipPath = path.join(updateDir, 'update.zip')
+    progressWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+      <html><body style="font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1e293b;color:white;">
+        <div style="text-align:center;">
+          <p>Baixando atualização...</p>
+          <div style="background:#334155;border-radius:8px;height:20px;width:300px;overflow:hidden;">
+            <div id="bar" style="background:#3b82f6;height:100%;width:0%;transition:width 0.3s;"></div>
+          </div>
+          <p id="pct" style="margin-top:8px;">0%</p>
+        </div>
+      </body></html>
+    `)}`)
+    progressWin.once('ready-to-show', () => progressWin.show())
 
-    const downloaded = await downloadFile(release.downloadUrl, zipPath)
+    let lastPercent = 0
+    const downloaded = await downloadFile(release.downloadUrl, installerPath, (percent) => {
+      if (percent !== lastPercent) {
+        lastPercent = percent
+        progressWin.webContents.executeJavaScript(`document.getElementById('bar').style.width='${percent}%';document.getElementById('pct').textContent='${percent}%';`)
+      }
+    })
+
+    progressWin.close()
+
     if (!downloaded) {
       dialog.showErrorBox('Erro', 'Falha ao baixar atualização.')
       return false
     }
 
-    const extracted = await extractZip(zipPath, updateDir)
-    if (!extracted) {
-      dialog.showErrorBox('Erro', 'Falha ao extrair atualização.')
-      return false
-    }
-
-    try { fs.unlinkSync(zipPath) } catch {}
-
-    await dialog.showMessageBox({
-      type: 'info',
-      title: 'Atualização Baixada',
-      message: 'Atualização pronta!\n\nReinicie o sistema para aplicar.',
-      buttons: ['OK']
-    })
-
+    log.info('Download completo, aplicando...')
+    applyUpdate(installerPath)
     return true
   } catch (err) {
+    log.error('Erro na atualização:', err)
     if (!silent) {
       dialog.showErrorBox('Erro', `Erro ao verificar atualização: ${err}`)
     }
     return false
   }
+}
+
+export function checkAndApplyUpdates(): void {
+  // Not used in manual updater mode
 }

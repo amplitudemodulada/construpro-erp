@@ -83,10 +83,13 @@ const api = {
   app: {
     sair: () => ipcRenderer.invoke('app:sair'),
     reiniciar: () => ipcRenderer.invoke('app:reiniciar'),
+    version: () => ipcRenderer.invoke('app:version'),
+    info: () => ipcRenderer.invoke('app:info'),
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     checkSilent: () => ipcRenderer.invoke('update:check-silent'),
+    latest: () => ipcRenderer.invoke('update:latest'),
   },
   print: {
     direct: (html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) =>

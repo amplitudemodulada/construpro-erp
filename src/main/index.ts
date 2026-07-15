@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell, session, PrintToPDFOptions } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, session, dialog } from 'electron'
 import { join } from 'path'
 import { checkLicense, activateLicense, getLicenseInfo } from './license'
-import { isTokenValid, getTokenInfo, saveToken } from './token'
+import { isTokenValid, getTokenInfo } from './token'
 import { registerClientesIpc } from './ipc/clientes'
 import { registerFornecedoresIpc } from './ipc/fornecedores'
 import { registerFuncionariosIpc } from './ipc/funcionarios'
@@ -11,7 +11,7 @@ import { registerVendasIpc } from './ipc/vendas'
 import { registerFinanceiroIpc } from './ipc/financeiro'
 import { registerRelatoriosIpc } from './ipc/relatorios'
 import { registerBackupIpc } from './ipc/backup'
-import { checkForUpdates, checkAndApplyUpdates } from './updater'
+import { checkForUpdates, initUpdater, getVersion, getLatestRelease } from './updater'
 
 const isDev = process.defaultApp === true || process.env.NODE_ENV === 'development'
 
@@ -79,9 +79,18 @@ registerFinanceiroIpc()
 registerRelatoriosIpc()
 registerBackupIpc()
 
+// Version IPC
+ipcMain.handle('app:version', () => getVersion())
+ipcMain.handle('app:info', () => ({
+  version: getVersion(),
+  name: 'ConstruPro ERP',
+  platform: process.platform
+}))
+
 // Updater IPC
 ipcMain.handle('update:check', () => checkForUpdates(false))
 ipcMain.handle('update:check-silent', () => checkForUpdates(true))
+ipcMain.handle('update:latest', () => getLatestRelease())
 
 // Print IPC — abre janela oculta e imprime via Electron (sem depender do Windows Print)
 ipcMain.handle('print:direct', async (_, html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) => {
@@ -132,7 +141,7 @@ app.whenReady().then(() => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://wa.me https://*.whatsapp.com https://api.github.com https://github.com"
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://wa.me https://*.whatsapp.com https://api.github.com https://github.com https://construpro-updater.vercel.app"
         ]
       }
     })
@@ -161,7 +170,7 @@ app.whenReady().then(() => {
   }
 
   // Aplicar atualização pendente (baixada na sessão anterior)
-  checkAndApplyUpdates()
+  initUpdater()
 
   // Verificar atualização automaticamente após 10 segundos
   setTimeout(() => {

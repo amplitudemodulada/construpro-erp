@@ -1,0 +1,32 @@
+appId: com.msdos.construpro
+productName: ConstruPro ERP
+directories:
+  output: dist
+files:
+  - out/**/*
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bindings/**/*
+  - node_modules/file-uri-to-path/**/*
+  - token.dat
+  - version.json
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ConstruPro-ERP-${version}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ConstruPro ERP
+  uninstallDisplayName: ConstruPro ERP
+publish:
+  provider: github
+  owner: amplitudemodulada
+  repo: contrupro-erp
+  releaseType: release

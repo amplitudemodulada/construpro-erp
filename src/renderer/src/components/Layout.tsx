@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Truck, UserCheck, Package, Layers,
   ShoppingCart, DollarSign, Database, HelpCircle,
-  ChevronRight, LogOut, BarChart2, Keyboard
+  ChevronRight, LogOut, BarChart2, Keyboard, Download
 } from 'lucide-react'
 import ChatAjuda from './ChatAjuda'
 
@@ -32,6 +32,21 @@ export default function Layout({ children }: { children: ReactNode }) {
   const current = nav.find(n => n.to === location.pathname)
   const navigate = useNavigate()
   const [mostrarAtalhos, setMostrarAtalhos] = useState(false)
+  const [updateDisponivel, setUpdateDisponivel] = useState<string | null>(null)
+  const [versaoAtual, setVersaoAtual] = useState('')
+
+  useEffect(() => {
+    window.api.app.version().then((v: string) => setVersaoAtual(v)).catch(() => {})
+    window.api.update.latest().then((r: any) => {
+      if (r?.version) {
+        window.api.app.version().then((local: string) => {
+          if (r.version !== local) {
+            setUpdateDisponivel(r.version)
+          }
+        })
+      }
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -61,7 +76,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       <aside className="w-56 bg-slate-900 flex flex-col shrink-0">
         <div className="p-5 border-b border-slate-700">
           <div className="text-xl font-bold text-white">🏗️ ConstruPro</div>
-          <div className="text-xs text-slate-400 mt-0.5">ERP Materiais de Construção</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            ERP Materiais de Construção
+            {versaoAtual && <span className="ml-1 text-slate-500">v{versaoAtual}</span>}
+          </div>
         </div>
 
         <nav className="flex-1 py-3 overflow-y-auto">
@@ -91,6 +109,16 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* Botão Sair */}
         <div className="p-3 border-t border-slate-700 space-y-1">
+          {updateDisponivel && (
+            <button
+              onClick={() => navigate('/ajuda')}
+              className="flex items-center gap-3 w-full px-4 py-2 rounded-lg text-xs font-medium text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-all"
+            >
+              <Download size={14} />
+              <span className="flex-1 text-left">Atualização v{updateDisponivel}</span>
+              <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+            </button>
+          )}
           <button
             onClick={() => setMostrarAtalhos(p => !p)}
             className="flex items-center gap-3 w-full px-4 py-2 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all"

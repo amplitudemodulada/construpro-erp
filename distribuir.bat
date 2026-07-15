@@ -1,57 +1,42 @@
 @echo off
-title ConstruPro ERP - Gerar Distribuicao
+title ConstruPro ERP - Gerar Instalador
 cd /d "%~dp0"
 
 echo.
 echo  ============================================
-echo   ConstruPro ERP - Gerar Versao para Cliente
+echo   ConstruPro ERP - Gerar Instalador
 echo  ============================================
 echo.
 
-set DEST=dist\ConstruPro-ERP
-
-:: Limpa pasta anterior (ignora erros de arquivos travados)
-echo  [1/3] Limpando pasta anterior...
-if exist "%DEST%" rmdir /s /q "%DEST%" 2>nul
-mkdir "%DEST%" 2>nul
-
 :: Compila
-echo  [2/3] Compilando...
+echo  [1/2] Compilando...
 call npm run build 2>nul
 if errorlevel 1 ( echo  ERRO no build! & pause & exit /b 1 )
 
-:: Copia com robocopy (mais robusto)
-echo  [3/3] Copiando arquivos...
-robocopy "out" "%DEST%\out" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
-robocopy "node_modules\electron\dist" "%DEST%" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
-robocopy "node_modules\better-sqlite3" "%DEST%\node_modules\better-sqlite3" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
-robocopy "node_modules\bindings" "%DEST%\node_modules\bindings" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
-robocopy "node_modules\file-uri-to-path" "%DEST%\node_modules\file-uri-to-path" /E /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
-copy /y "package.json" "%DEST%\package.json" >nul
-copy /y "token.json" "%DEST%\token.json" >nul
+:: Gera token.dat criptografado
+echo  [2/2] Gerando token criptografado e instalador...
+npx tsx scripts/gerar-token.ts
 
-:: Cria bat de inicializacao
-echo  [2/3] Criando iniciar.bat...
-(
-echo @echo off
-echo cd /d "%%~dp0"
-echo start "" "electron.exe" .
-) > "%DEST%\iniciar.bat"
+:: Gera instalador NSIS
+call npx electron-builder --win --publish never
+if errorlevel 1 ( echo  ERRO no instalador! & pause & exit /b 1 )
 
 echo.
 echo  ============================================
 echo   PRONTO!
 echo  ============================================
 echo.
-echo  Pasta: %DEST%\
+echo  Instalador em: dist\ConstruPro ERP-Setup-1.1.0.exe
 echo.
-echo  PARA USAR NO CLIENTE:
-echo    1. Copie TUDO de "ConstruPro-ERP" para o pendrive
-echo    2. No cliente, cole em C:\ConstruPro-ERP
-echo    3. Duplo-clique em "iniciar.bat"
+echo  PARA INSTALAR NO CLIENTE:
+echo    1. Copie o .exe para o pendrive
+echo    2. No cliente, execute o .exe
+echo    3. Escolha a pasta de instalação
+echo    4. Pronto! Atalho no desktop e menu iniciar
 echo.
-echo  Nao precisa instalar nada!
-echo  Codigo ofuscado e protegido.
+echo  ATUALIZACAO AUTOMATICA:
+echo    O sistema detecta updates automaticamente
+echo    via GitHub Releases.
 echo  ============================================
 echo.
 pause

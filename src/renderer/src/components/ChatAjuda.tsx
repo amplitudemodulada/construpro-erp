@@ -410,7 +410,7 @@ const BASE = [
     titulo: 'Sobre o Sistema',
     respostas: [
       'ConstruPro ERP é um sistema de gestão desenvolvido pela Msdos Informatica.',
-      'VERSÃO: 1.0.0',
+      'VERSÃO: 1.1.0',
       'FINALIDADE: Gestão completa para lojas de materiais de construção.',
       'MÓDULOS: Dashboard, Clientes, Fornecedores, Funcionários, Produtos, Estoque, Vendas (PDV), Financeiro, Relatórios e Backup.',
       'TECNOLOGIAS: Electron, React, TypeScript, SQLite, Tailwind CSS.',
