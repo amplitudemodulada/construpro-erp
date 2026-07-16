@@ -71,10 +71,11 @@
 
   <script>
     const API = 'https://construpro-updater.vercel.app/api/license'
+    const ADMIN_KEY = '6318F0422501284C173B695DB1CD95F0'
 
     async function carregar() {
       try {
-        const r = await fetch(API + '?action=list')
+        const r = await fetch(API + '?action=list&key=' + ADMIN_KEY)
         const data = await r.json()
         const lista = document.getElementById('lista')
 
@@ -147,7 +148,7 @@
       try {
         const r = await fetch(API, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY },
           body: JSON.stringify({ token, expires, company })
         })
         const data = await r.json()
@@ -187,8 +188,8 @@
       try {
         await fetch(API, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, expires: '1970-01-01', status: 'blocked' })
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY },
+          body: JSON.stringify({ token, status: 'blocked' })
         })
         alert('Token bloqueado!')
         document.getElementById('bloquearToken').value = ''
