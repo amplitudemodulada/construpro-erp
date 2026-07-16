@@ -11,7 +11,7 @@
   },
   "CONSTRUPRO-2026-TEST": {
     "expires": "2027-12-31",
-    "status": "active",
+    "status": "blocked",
     "company": "Teste"
   }
 }
