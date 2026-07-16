@@ -1,12 +1,17 @@
 {
-  "CONSTRUPRO-2026-TEST1": {
-    "status": "blocked",
-    "company": "Empresa Teste",
-    "expires": "2027-12-31"
-  },
-  "CONSTRUPRO-2026-TEST2": {
-    "expires": "2028-12-31",
+  "CONSTRUPRO-2026-FINAL": {
+    "expires": "2027-12-31",
     "status": "active",
-    "company": "Empresa Teste 2"
+    "company": "Empresa Final"
+  },
+  "CONSTRUPRO-2026-ECYZC6": {
+    "expires": "2026-08-20",
+    "status": "active",
+    "company": "L01"
+  },
+  "CONSTRUPRO-2026-TEST": {
+    "expires": "2027-12-31",
+    "status": "active",
+    "company": "Teste"
   }
 }
