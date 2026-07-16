@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, session, dialog } from 'electron'
 import { join } from 'path'
-import { checkLicense, activateToken, getActivationToken } from './license'
+import { checkLicense, activateToken, getActivationToken, startPeriodicCheck } from './license'
 import { registerClientesIpc } from './ipc/clientes'
 import { registerFornecedoresIpc } from './ipc/fornecedores'
 import { registerFuncionariosIpc } from './ipc/funcionarios'
@@ -167,6 +167,12 @@ app.whenReady().then(async () => {
 
     mainWindow.webContents.on('did-finish-load', () => {
       mainWindow.webContents.send('license:ok', licStatus)
+    })
+
+    // Verificação periódica (a cada 1 hora)
+    startPeriodicCheck((status) => {
+      dialog.showErrorBox('Licença', status.message)
+      mainWindow.webContents.send('license:blocked', status)
     })
   }
 

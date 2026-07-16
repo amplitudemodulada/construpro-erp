@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConstruPro ERP - Painel de Licenças</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 min-h-screen text-white">
+  <div class="max-w-4xl mx-auto p-8">
+    <h1 class="text-3xl font-bold mb-2">ConstruPro ERP</h1>
+    <p class="text-slate-400 mb-8">Painel de Gerenciamento de Licenças</p>
+
+    <!-- Criar / Renovar -->
+    <div class="bg-slate-800 rounded-xl p-6 mb-6">
+      <h2 class="text-xl font-semibold mb-4">Criar / Renovar Licença</h2>
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Token</label>
+          <input id="token" type="text" placeholder="CONSTRUPRO-2026-ABC"
+            class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Validade</label>
+          <input id="expires" type="date"
+            class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Empresa</label>
+          <input id="company" type="text" placeholder="Nome da empresa"
+            class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+      </div>
+      <button onclick="salvar()" id="btnSalvar"
+        class="px-6 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg font-semibold transition-colors">
+        Salvar e Publicar
+      </button>
+      <span id="msgSalvar" class="ml-4 text-sm hidden"></span>
+    </div>
+
+    <!-- Licenças existentes -->
+    <div class="bg-slate-800 rounded-xl p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">Licenças Cadastradas</h2>
+        <button onclick="carregar()" class="px-4 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors">
+          Atualizar
+        </button>
+      </div>
+      <div id="lista" class="text-slate-400">Carregando...</div>
+    </div>
+
+    <!-- Bloquear -->
+    <div class="bg-slate-800 rounded-xl p-6">
+      <h2 class="text-xl font-semibold mb-4">Bloquear Licença</h2>
+      <div class="flex gap-4">
+        <input id="bloquearToken" type="text" placeholder="Token para bloquear"
+          class="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-red-500">
+        <button onclick="bloquear()"
+          class="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition-colors">
+          Bloquear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'https://construpro-updater.vercel.app/api/license'
+
+    async function carregar() {
+      try {
+        const r = await fetch(API + '?action=list')
+        const data = await r.json()
+        const lista = document.getElementById('lista')
+
+        if (Object.keys(data).length === 0) {
+          lista.innerHTML = '<p class="text-slate-500">Nenhuma licença cadastrada</p>'
+          return
+        }
+
+        let html = '<table class="w-full text-sm"><thead><tr class="text-slate-400 border-b border-slate-700">'
+          + '<th class="text-left py-2">Token</th>'
+          + '<th class="text-left py-2">Empresa</th>'
+          + '<th class="text-left py-2">Validade</th>'
+          + '<th class="text-left py-2">Status</th>'
+          + '</tr></thead><tbody>'
+
+        for (const [token, lic] of Object.entries(data)) {
+          const expira = new Date(lic.expires + 'T23:59:59')
+          const hoje = new Date()
+          hoje.setHours(0,0,0,0)
+          const dias = Math.ceil((expira - hoje) / (1000*60*60*24))
+          const status = lic.status === 'blocked' ? 'Bloqueada'
+            : dias < 0 ? 'Expirada'
+            : dias <= 30 ? `${dias} dias`
+            : 'Ativa'
+          const cor = lic.status === 'blocked' ? 'text-red-400'
+            : dias < 0 ? 'text-red-400'
+            : dias <= 30 ? 'text-yellow-400'
+            : 'text-green-400'
+
+          html += `<tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+            <td class="py-3 font-mono text-orange-400">${token}</td>
+            <td class="py-3">${lic.company || '-'}</td>
+            <td class="py-3">${new Date(lic.expires).toLocaleDateString('pt-BR')}</td>
+            <td class="py-3 ${cor} font-medium">${status}</td>
+          </tr>`
+        }
+
+        html += '</tbody></table>'
+        lista.innerHTML = html
+      } catch (e) {
+        document.getElementById('lista').innerHTML = '<p class="text-red-400">Erro ao carregar</p>'
+      }
+    }
+
+    async function salvar() {
+      const token = document.getElementById('token').value.trim().toUpperCase()
+      const expires = document.getElementById('expires').value
+      const company = document.getElementById('company').value.trim()
+
+      if (!token || !expires) {
+        alert('Preencha token e validade')
+        return
+      }
+
+      const btn = document.getElementById('btnSalvar')
+      const msg = document.getElementById('msgSalvar')
+      btn.disabled = true
+      btn.textContent = 'Salvando...'
+
+      try {
+        const r = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, expires, company })
+        })
+        const data = await r.json()
+
+        if (data.ok) {
+          msg.textContent = '✓ Licença salva! Aguarde publicação...'
+          msg.className = 'ml-4 text-sm text-green-400'
+          msg.classList.remove('hidden')
+
+          // Publicar
+          msg.textContent = '✓ Publicada com sucesso!'
+          document.getElementById('token').value = ''
+          document.getElementById('expires').value = ''
+          document.getElementById('company').value = ''
+          carregar()
+        } else {
+          msg.textContent = '✗ Erro ao salvar'
+          msg.className = 'ml-4 text-sm text-red-400'
+          msg.classList.remove('hidden')
+        }
+      } catch (e) {
+        msg.textContent = '✗ Erro de conexão'
+        msg.className = 'ml-4 text-sm text-red-400'
+        msg.classList.remove('hidden')
+      }
+
+      btn.disabled = false
+      btn.textContent = 'Salvar e Publicar'
+    }
+
+    async function bloquear() {
+      const token = document.getElementById('bloquearToken').value.trim().toUpperCase()
+      if (!token) return
+
+      if (!confirm(`Bloquear token ${token}?`)) return
+
+      try {
+        await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, expires: '1970-01-01', status: 'blocked' })
+        })
+        alert('Token bloqueado!')
+        document.getElementById('bloquearToken').value = ''
+        carregar()
+      } catch (e) {
+        alert('Erro ao bloquear')
+      }
+    }
+
+    // Carregar ao abrir
+    carregar()
+  </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { app } from 'electron'
 
 const LICENSE_SERVER = 'https://construpro-updater.vercel.app/api/license'
 const TOKEN_FILE = 'activation.dat'
+const CHECK_INTERVAL = 60 * 60 * 1000 // 1 hora
 
 function getTokenPath(): string {
   return path.join(app.getPath('userData'), TOKEN_FILE)
@@ -25,7 +26,7 @@ function saveLocalToken(token: string): void {
   } catch {}
 }
 
-function validateWithServer(token: string): Promise<any> {
+function fetchLicense(token: string): Promise<any> {
   return new Promise((resolve) => {
     const url = new URL(LICENSE_SERVER + '?token=' + encodeURIComponent(token))
     const req = https.get({
@@ -55,10 +56,12 @@ export interface LicenseStatus {
   company?: string
 }
 
+// Cache da última validação bem-sucedida
+let lastValidStatus: LicenseStatus | null = null
+
 export async function checkLicense(): Promise<LicenseStatus> {
   const token = loadLocalToken()
 
-  // Sem token → precisa ativar
   if (!token) {
     return {
       valid: false,
@@ -70,10 +73,10 @@ export async function checkLicense(): Promise<LicenseStatus> {
   }
 
   // Validar com servidor
-  const remote = await validateWithServer(token)
+  const remote = await fetchLicense(token)
 
   if (remote) {
-    return {
+    const result: LicenseStatus = {
       valid: remote.valid,
       status: remote.status,
       expires: remote.expires || '',
@@ -81,9 +84,21 @@ export async function checkLicense(): Promise<LicenseStatus> {
       message: remote.message,
       company: remote.company
     }
+
+    if (result.valid) {
+      lastValidStatus = result
+    }
+
+    return result
   }
 
-  // Offline → permitir uso se token existe (cache local)
+  // Offline → usar último status válido (máx 24h)
+  if (lastValidStatus) {
+    log.info('Offline, usando último status válido')
+    return { ...lastValidStatus, message: 'Sem conexão. Licença verificada anteriormente.' }
+  }
+
+  // Primeira vez e offline → permitir
   return {
     valid: true,
     status: 'offline',
@@ -100,4 +115,27 @@ export function activateToken(token: string): boolean {
 
 export function getActivationToken(): string | null {
   return loadLocalToken()
+}
+
+// Verificação periódica (chamar no initUpdater)
+let periodicTimer: NodeJS.Timeout | null = null
+
+export function startPeriodicCheck(onStatusChange: (status: LicenseStatus) => void): void {
+  if (periodicTimer) return
+
+  periodicTimer = setInterval(async () => {
+    const status = await checkLicense()
+    if (!status.valid) {
+      onStatusChange(status)
+    }
+  }, CHECK_INTERVAL)
+
+  log.info('Verificação periódica de licença iniciada (1h)')
+}
+
+export function stopPeriodicCheck(): void {
+  if (periodicTimer) {
+    clearInterval(periodicTimer)
+    periodicTimer = null
+  }
 }
