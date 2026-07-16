@@ -180,6 +180,8 @@ export default function Ajuda() {
   const [tokenInfo, setTokenInfo] = useState<any>(null)
   const [versao, setVersao] = useState('...')
   const [versaoRemota, setVersaoRemota] = useState<string | null>(null)
+  const [licRemota, setLicRemota] = useState<any>(null)
+  const [hwId, setHwId] = useState('')
 
   useEffect(() => {
     window.api.token.info().then(setTokenInfo).catch(() => {})
@@ -187,6 +189,8 @@ export default function Ajuda() {
     window.api.update.latest().then((r: any) => {
       if (r?.version) setVersaoRemota(r.version)
     }).catch(() => {})
+    window.api.license.hardwareId().then((id: string) => setHwId(id)).catch(() => {})
+    window.api.license.remote().then((r: any) => setLicRemota(r)).catch(() => {})
   }, [])
 
   const verificarAtualizacao = async () => {
@@ -281,31 +285,38 @@ export default function Ajuda() {
         })}
       </div>
 
-      {tokenInfo && (
+      {licRemota && (
         <div className="card p-4">
           <div className="flex items-center gap-3 mb-3">
-            <Key size={18} className="text-green-600" />
+            <Key size={18} className={licRemota.valid ? 'text-green-600' : 'text-red-600'} />
             <span className="font-semibold text-slate-800">Licença do Sistema</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              licRemota.status === 'active' ? 'bg-green-100 text-green-700' :
+              licRemota.status === 'trial' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-red-100 text-red-700'
+            }`}>
+              {licRemota.status === 'active' ? 'ATIVA' :
+               licRemota.status === 'trial' ? 'AVALIAÇÃO' :
+               licRemota.status === 'blocked' ? 'BLOQUEADA' : 'EXPIRADA'}
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <span className="text-slate-500">Token:</span>
-              <span className="ml-2 font-mono text-slate-700">{tokenInfo.token}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Empresa:</span>
-              <span className="ml-2 text-slate-700">{tokenInfo.empresa}</span>
-            </div>
-            <div>
               <span className="text-slate-500">Validade:</span>
-              <span className="ml-2 text-slate-700">{new Date(tokenInfo.validade).toLocaleDateString('pt-BR')}</span>
+              <span className="ml-2 text-slate-700">{new Date(licRemota.expires).toLocaleDateString('pt-BR')}</span>
             </div>
             <div>
               <span className="text-slate-500">Dias restantes:</span>
-              <span className={`ml-2 font-bold ${tokenInfo.diasRestantes <= 30 ? 'text-red-600' : 'text-green-600'}`}>
-                {tokenInfo.diasRestantes} dia(s)
+              <span className={`ml-2 font-bold ${licRemota.daysLeft <= 30 ? 'text-red-600' : 'text-green-600'}`}>
+                {licRemota.daysLeft} dia(s)
               </span>
             </div>
+            {hwId && (
+              <div className="col-span-2">
+                <span className="text-slate-500">ID da Máquina:</span>
+                <span className="ml-2 font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{hwId}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

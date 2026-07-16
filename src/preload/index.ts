@@ -7,6 +7,11 @@ const api = {
     check: () => ipcRenderer.invoke('license:check'),
     activate: (key: string) => ipcRenderer.invoke('license:activate', key),
     info: () => ipcRenderer.invoke('license:info'),
+    remote: () => ipcRenderer.invoke('license:remote'),
+    hardwareId: () => ipcRenderer.invoke('license:hardwareId'),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on('license:status', (_, status) => callback(status))
+    },
   },
   // Clientes
   clientes: {

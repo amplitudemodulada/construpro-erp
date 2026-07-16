@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, session, dialog } from 'electron'
 import { join } from 'path'
 import { checkLicense, activateLicense, getLicenseInfo } from './license'
 import { isTokenValid, getTokenInfo } from './token'
+import { checkRemoteLicense, getHardwareIdForDisplay } from './remote-license'
 import { registerClientesIpc } from './ipc/clientes'
 import { registerFornecedoresIpc } from './ipc/fornecedores'
 import { registerFuncionariosIpc } from './ipc/funcionarios'
@@ -87,6 +88,10 @@ ipcMain.handle('app:info', () => ({
   platform: process.platform
 }))
 
+// Remote License IPC
+ipcMain.handle('license:remote', () => checkRemoteLicense())
+ipcMain.handle('license:hardwareId', () => getHardwareIdForDisplay())
+
 // Updater IPC
 ipcMain.handle('update:check', () => checkForUpdates(false))
 ipcMain.handle('update:check-silent', () => checkForUpdates(true))
@@ -149,25 +154,34 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Verificar token de licença na inicialização
-  const tokenStatus = isTokenValid()
-  if (!tokenStatus.valid) {
-    dialog.showErrorBox('Licença', tokenStatus.message)
-    app.quit()
-    return
-  }
+  // Verificar licença remota na inicialização
+  checkRemoteLicense().then((remoteStatus) => {
+    if (!remoteStatus.valid) {
+      dialog.showErrorBox('Licença', remoteStatus.message)
+      app.quit()
+      return
+    }
 
-  // Aviso se faltar pouco para expirar
-  if (tokenStatus.daysLeft && tokenStatus.daysLeft <= 30) {
-    setTimeout(() => {
-      dialog.showMessageBox({
-        type: 'warning',
-        title: 'Licença',
-        message: tokenStatus.message,
-        buttons: ['OK']
-      })
-    }, 3000)
-  }
+    // Aviso se faltar pouco para expirar
+    if (remoteStatus.daysLeft <= 30) {
+      setTimeout(() => {
+        dialog.showMessageBox({
+          type: 'warning',
+          title: 'Licença',
+          message: remoteStatus.message,
+          buttons: ['OK']
+        })
+      }, 3000)
+    }
+
+    // Enviar status da licença para o renderer
+    mainWindow?.webContents.on('did-finish-load', () => {
+      mainWindow?.webContents.send('license:status', remoteStatus)
+    })
+  }).catch(() => {
+    // Em caso de erro, permitir uso (fallback offline)
+    log.error('Erro ao verificar licença remota, usando modo offline')
+  })
 
   // Aplicar atualização pendente (baixada na sessão anterior)
   initUpdater()
