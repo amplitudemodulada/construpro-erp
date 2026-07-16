@@ -98,13 +98,13 @@ export async function checkLicense(): Promise<LicenseStatus> {
     return { ...lastValidStatus, message: 'Sem conexão. Licença verificada anteriormente.' }
   }
 
-  // Primeira vez e offline → permitir
+  // Sem cache prévio + offline = bloquear
   return {
-    valid: true,
-    status: 'offline',
-    expires: '9999-12-31',
-    daysLeft: 99999,
-    message: 'Sem conexão. Verificação pendente.'
+    valid: false,
+    status: 'offline_first',
+    expires: '',
+    daysLeft: 0,
+    message: 'Conecte-se à internet para ativar o sistema.'
   }
 }
 
