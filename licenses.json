@@ -3,5 +3,10 @@
     "expires": "2027-12-31",
     "status": "active",
     "company": "Empresa Final"
+  },
+  "CONSTRUPRO-2026-ECYZC6": {
+    "expires": "2026-08-20",
+    "status": "active",
+    "company": "L01"
   }
 }
