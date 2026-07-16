@@ -1,14 +1,22 @@
+# Build
 node_modules/
 out/
 dist/
+
+# Banco de dados
 *.db
 *.db-shm
 *.db-wal
+
+# Variaveis de ambiente
 .env
 .env.local
 
-.vercel
+# Licenca local
+activation.dat
 token.dat
 token.json
 licenses.json
-activation.dat
+
+# Cache
+.vercel
