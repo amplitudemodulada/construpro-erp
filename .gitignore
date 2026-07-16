@@ -5,6 +5,10 @@ dist/
 *.db-shm
 *.db-wal
 .env
+.env.local
 
 .vercel
 token.dat
+token.json
+licenses.json
+activation.dat
