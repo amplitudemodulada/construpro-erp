@@ -177,20 +177,16 @@ const topicos = [
 export default function Ajuda() {
   const [aberto, setAberto] = useState<number | null>(0)
   const [verificando, setVerificando] = useState(false)
-  const [tokenInfo, setTokenInfo] = useState<any>(null)
   const [versao, setVersao] = useState('...')
   const [versaoRemota, setVersaoRemota] = useState<string | null>(null)
-  const [licRemota, setLicRemota] = useState<any>(null)
-  const [hwId, setHwId] = useState('')
+  const [licInfo, setLicInfo] = useState<any>(null)
 
   useEffect(() => {
-    window.api.token.info().then(setTokenInfo).catch(() => {})
     window.api.app.version().then((v: string) => setVersao(v)).catch(() => {})
     window.api.update.latest().then((r: any) => {
       if (r?.version) setVersaoRemota(r.version)
     }).catch(() => {})
-    window.api.license.hardwareId().then((id: string) => setHwId(id)).catch(() => {})
-    window.api.license.remote().then((r: any) => setLicRemota(r)).catch(() => {})
+    window.api.license.check().then((r: any) => setLicInfo(r)).catch(() => {})
   }, [])
 
   const verificarAtualizacao = async () => {
@@ -242,10 +238,7 @@ export default function Ajuda() {
                     {(() => {
                       let contador = 0
                       return t.passos.map((passo, i) => {
-                        // Linha vazia — separador visual
                         if (passo === '') return <li key={i} className="h-2" />
-
-                        // Título de seção (tudo maiúsculo e termina com :)
                         if (/^[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ\s]+:$/.test(passo.trim())) {
                           return (
                             <li key={i} className="pt-1">
@@ -253,8 +246,6 @@ export default function Ajuda() {
                             </li>
                           )
                         }
-
-                        // Sub-item com bullet
                         if (passo.startsWith('  •')) {
                           return (
                             <li key={i} className="flex gap-2 pl-6 text-sm text-slate-500">
@@ -263,8 +254,6 @@ export default function Ajuda() {
                             </li>
                           )
                         }
-
-                        // Item numerado normal
                         contador++
                         const num = contador
                         return (
@@ -285,36 +274,40 @@ export default function Ajuda() {
         })}
       </div>
 
-      {licRemota && (
+      {licInfo && (
         <div className="card p-4">
           <div className="flex items-center gap-3 mb-3">
-            <Key size={18} className={licRemota.valid ? 'text-green-600' : 'text-red-600'} />
+            <Key size={18} className={licInfo.valid ? 'text-green-600' : 'text-red-600'} />
             <span className="font-semibold text-slate-800">Licença do Sistema</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              licRemota.status === 'active' ? 'bg-green-100 text-green-700' :
-              licRemota.status === 'trial' ? 'bg-yellow-100 text-yellow-700' :
+              licInfo.status === 'active' ? 'bg-green-100 text-green-700' :
+              licInfo.status === 'trial' ? 'bg-yellow-100 text-yellow-700' :
               'bg-red-100 text-red-700'
             }`}>
-              {licRemota.status === 'active' ? 'ATIVA' :
-               licRemota.status === 'trial' ? 'AVALIAÇÃO' :
-               licRemota.status === 'blocked' ? 'BLOQUEADA' : 'EXPIRADA'}
+              {licInfo.status === 'active' ? 'ATIVA' :
+               licInfo.status === 'trial' ? 'AVALIAÇÃO' :
+               licInfo.status === 'expired' ? 'EXPIRADA' : 'INVÁLIDA'}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-slate-500">Validade:</span>
-              <span className="ml-2 text-slate-700">{new Date(licRemota.expires).toLocaleDateString('pt-BR')}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Dias restantes:</span>
-              <span className={`ml-2 font-bold ${licRemota.daysLeft <= 30 ? 'text-red-600' : 'text-green-600'}`}>
-                {licRemota.daysLeft} dia(s)
-              </span>
-            </div>
-            {hwId && (
+            {licInfo.expires && licInfo.expires !== '9999-12-31' && (
+              <div>
+                <span className="text-slate-500">Validade:</span>
+                <span className="ml-2 text-slate-700">{new Date(licInfo.expires).toLocaleDateString('pt-BR')}</span>
+              </div>
+            )}
+            {licInfo.daysLeft < 99999 && (
+              <div>
+                <span className="text-slate-500">Dias restantes:</span>
+                <span className={`ml-2 font-bold ${licInfo.daysLeft <= 30 ? 'text-red-600' : 'text-green-600'}`}>
+                  {licInfo.daysLeft} dia(s)
+                </span>
+              </div>
+            )}
+            {licInfo.company && (
               <div className="col-span-2">
-                <span className="text-slate-500">ID da Máquina:</span>
-                <span className="ml-2 font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{hwId}</span>
+                <span className="text-slate-500">Empresa:</span>
+                <span className="ml-2 text-slate-700">{licInfo.company}</span>
               </div>
             )}
           </div>

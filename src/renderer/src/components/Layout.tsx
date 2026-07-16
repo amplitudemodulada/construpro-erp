@@ -27,7 +27,12 @@ function confirmarSair() {
   }
 }
 
-export default function Layout({ children }: { children: ReactNode }) {
+interface LayoutProps {
+  children: ReactNode
+  licenseStatus?: any
+}
+
+export default function Layout({ children, licenseStatus }: LayoutProps) {
   const location = useLocation()
   const current = nav.find(n => n.to === location.pathname)
   const navigate = useNavigate()
@@ -75,7 +80,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside className="w-56 bg-slate-900 flex flex-col shrink-0">
         <div className="p-5 border-b border-slate-700">
-          <div className="text-xl font-bold text-white">🏗️ ConstruPro</div>
+          <div className="text-xl font-bold text-white">ConstruPro</div>
           <div className="text-xs text-slate-400 mt-0.5">
             ERP Materiais de Construção
             {versaoAtual && <span className="ml-1 text-slate-500">v{versaoAtual}</span>}

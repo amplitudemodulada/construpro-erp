@@ -1,8 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, session, dialog } from 'electron'
 import { join } from 'path'
-import { checkLicense, activateLicense, getLicenseInfo } from './license'
-import { isTokenValid, getTokenInfo } from './token'
-import { checkRemoteLicense, getHardwareIdForDisplay } from './remote-license'
+import { checkLicense, activateToken, getActivationToken } from './license'
 import { registerClientesIpc } from './ipc/clientes'
 import { registerFornecedoresIpc } from './ipc/fornecedores'
 import { registerFuncionariosIpc } from './ipc/funcionarios'
@@ -13,6 +11,7 @@ import { registerFinanceiroIpc } from './ipc/financeiro'
 import { registerRelatoriosIpc } from './ipc/relatorios'
 import { registerBackupIpc } from './ipc/backup'
 import { checkForUpdates, initUpdater, getVersion, getLatestRelease } from './updater'
+import log from 'electron-log'
 
 const isDev = process.defaultApp === true || process.env.NODE_ENV === 'development'
 
@@ -35,7 +34,6 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
 
-  // Bloqueia DevTools e menu de contexto em produção
   if (!isDev) {
     mainWindow.webContents.on('before-input-event', (_, input) => {
       if (
@@ -62,12 +60,8 @@ function createWindow() {
 
 // License IPC
 ipcMain.handle('license:check', () => checkLicense())
-ipcMain.handle('license:activate', (_, key: string) => activateLicense(key))
-ipcMain.handle('license:info', () => getLicenseInfo())
-
-// Token IPC
-ipcMain.handle('token:validate', () => isTokenValid())
-ipcMain.handle('token:info', () => getTokenInfo())
+ipcMain.handle('license:activate', (_, token: string) => activateToken(token))
+ipcMain.handle('license:token', () => getActivationToken())
 
 // Register all module IPC handlers
 registerClientesIpc()
@@ -88,16 +82,12 @@ ipcMain.handle('app:info', () => ({
   platform: process.platform
 }))
 
-// Remote License IPC
-ipcMain.handle('license:remote', () => checkRemoteLicense())
-ipcMain.handle('license:hardwareId', () => getHardwareIdForDisplay())
-
 // Updater IPC
 ipcMain.handle('update:check', () => checkForUpdates(false))
 ipcMain.handle('update:check-silent', () => checkForUpdates(true))
 ipcMain.handle('update:latest', () => getLatestRelease())
 
-// Print IPC — abre janela oculta e imprime via Electron (sem depender do Windows Print)
+// Print IPC
 ipcMain.handle('print:direct', async (_, html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) => {
   const printWindow = new BrowserWindow({
     show: false,
@@ -138,7 +128,7 @@ ipcMain.handle('print:direct', async (_, html: string, options?: { silent?: bool
   })
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId('com.msdos.construpro')
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -146,7 +136,7 @@ app.whenReady().then(() => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://wa.me https://*.whatsapp.com https://api.github.com https://github.com https://construpro-updater.vercel.app"
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://wa.me https://*.whatsapp.com https://construpro-updater.vercel.app"
         ]
       }
     })
@@ -154,36 +144,33 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Verificar licença remota na inicialização
-  checkRemoteLicense().then((remoteStatus) => {
-    if (!remoteStatus.valid) {
-      dialog.showErrorBox('Licença', remoteStatus.message)
-      app.quit()
-      return
-    }
+  // Verificar licença na inicialização
+  const licStatus = await checkLicense()
 
-    // Aviso se faltar pouco para expirar
-    if (remoteStatus.daysLeft <= 30) {
+  if (!licStatus.valid) {
+    // Licença inválida → tela de ativação
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.send('license:blocked', licStatus)
+    })
+  } else {
+    // Licença válida → verificar expiração
+    if (licStatus.daysLeft <= 30 && licStatus.daysLeft > 0) {
       setTimeout(() => {
         dialog.showMessageBox({
           type: 'warning',
           title: 'Licença',
-          message: remoteStatus.message,
+          message: licStatus.message,
           buttons: ['OK']
         })
       }, 3000)
     }
 
-    // Enviar status da licença para o renderer
-    mainWindow?.webContents.on('did-finish-load', () => {
-      mainWindow?.webContents.send('license:status', remoteStatus)
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.send('license:ok', licStatus)
     })
-  }).catch(() => {
-    // Em caso de erro, permitir uso (fallback offline)
-    log.error('Erro ao verificar licença remota, usando modo offline')
-  })
+  }
 
-  // Aplicar atualização pendente (baixada na sessão anterior)
+  // Aplicar atualização pendente
   initUpdater()
 
   // Verificar atualização automaticamente após 10 segundos

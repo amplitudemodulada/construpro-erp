@@ -2,18 +2,17 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
-  // License
   license: {
     check: () => ipcRenderer.invoke('license:check'),
-    activate: (key: string) => ipcRenderer.invoke('license:activate', key),
-    info: () => ipcRenderer.invoke('license:info'),
-    remote: () => ipcRenderer.invoke('license:remote'),
-    hardwareId: () => ipcRenderer.invoke('license:hardwareId'),
-    onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on('license:status', (_, status) => callback(status))
+    activate: (token: string) => ipcRenderer.invoke('license:activate', token),
+    token: () => ipcRenderer.invoke('license:token'),
+    onBlocked: (callback: (status: any) => void) => {
+      ipcRenderer.on('license:blocked', (_, status) => callback(status))
+    },
+    onOk: (callback: (status: any) => void) => {
+      ipcRenderer.on('license:ok', (_, status) => callback(status))
     },
   },
-  // Clientes
   clientes: {
     listar: (filtro?: string) => ipcRenderer.invoke('clientes:listar', filtro),
     buscarPorId: (id: number) => ipcRenderer.invoke('clientes:buscarPorId', id),
@@ -22,7 +21,6 @@ const api = {
     excluir: (id: number) => ipcRenderer.invoke('clientes:excluir', id),
     historico: (id: number) => ipcRenderer.invoke('clientes:historico', id),
   },
-  // Fornecedores
   fornecedores: {
     listar: (filtro?: string) => ipcRenderer.invoke('fornecedores:listar', filtro),
     buscarPorId: (id: number) => ipcRenderer.invoke('fornecedores:buscarPorId', id),
@@ -30,7 +28,6 @@ const api = {
     atualizar: (id: number, data: any) => ipcRenderer.invoke('fornecedores:atualizar', id, data),
     excluir: (id: number) => ipcRenderer.invoke('fornecedores:excluir', id),
   },
-  // Funcionários
   funcionarios: {
     listar: () => ipcRenderer.invoke('funcionarios:listar'),
     buscarPorId: (id: number) => ipcRenderer.invoke('funcionarios:buscarPorId', id),
@@ -38,7 +35,6 @@ const api = {
     atualizar: (id: number, data: any) => ipcRenderer.invoke('funcionarios:atualizar', id, data),
     excluir: (id: number) => ipcRenderer.invoke('funcionarios:excluir', id),
   },
-  // Produtos
   produtos: {
     listar: (filtro?: string) => ipcRenderer.invoke('produtos:listar', filtro),
     buscarPorId: (id: number) => ipcRenderer.invoke('produtos:buscarPorId', id),
@@ -49,19 +45,16 @@ const api = {
     excluir: (id: number) => ipcRenderer.invoke('produtos:excluir', id),
     buscarPorBarras: (codigo: string) => ipcRenderer.invoke('produtos:buscarPorBarras', codigo),
   },
-  // Estoque
   estoque: {
     movimentacoes: (produtoId?: number) => ipcRenderer.invoke('estoque:movimentacoes', produtoId),
     ajustar: (data: any) => ipcRenderer.invoke('estoque:ajustar', data),
   },
-  // Vendas
   vendas: {
     listar: (filtros?: any) => ipcRenderer.invoke('vendas:listar', filtros),
     buscarPorId: (id: number) => ipcRenderer.invoke('vendas:buscarPorId', id),
     criar: (data: any) => ipcRenderer.invoke('vendas:criar', data),
     cancelar: (id: number) => ipcRenderer.invoke('vendas:cancelar', id),
   },
-  // Financeiro
   financeiro: {
     contasPagar: (filtros?: any) => ipcRenderer.invoke('financeiro:contasPagar', filtros),
     criarContaPagar: (data: any) => ipcRenderer.invoke('financeiro:criarContaPagar', data),
@@ -73,7 +66,6 @@ const api = {
     resumo: (periodo: any) => ipcRenderer.invoke('financeiro:resumo', periodo),
     adicionarCaixa: (data: any) => ipcRenderer.invoke('financeiro:adicionarCaixa', data),
   },
-  // Relatórios
   relatorios: {
     vendasPorPeriodo: (inicio: string, fim: string) => ipcRenderer.invoke('relatorios:vendasPorPeriodo', inicio, fim),
     produtosMaisVendidos: (inicio: string, fim: string) => ipcRenderer.invoke('relatorios:produtosMaisVendidos', inicio, fim),
@@ -99,10 +91,6 @@ const api = {
   print: {
     direct: (html: string, options?: { silent?: boolean; printerName?: string; landscape?: boolean }) =>
       ipcRenderer.invoke('print:direct', html, options),
-  },
-  token: {
-    validate: () => ipcRenderer.invoke('token:validate'),
-    info: () => ipcRenderer.invoke('token:info'),
   },
 }
 
